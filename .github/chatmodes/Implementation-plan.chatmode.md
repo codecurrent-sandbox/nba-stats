@@ -1,6 +1,6 @@
 ---
 description: 'Generate an implementation plan for new features or refactoring existing code.'
-tools: ['codebase', 'usages', 'vscodeAPI', 'think', 'problems', 'changes', 'testFailure', 'terminalSelection', 'terminalLastCommand', 'openSimpleBrowser', 'fetch', 'findTestFiles', 'searchResults', 'githubRepo', 'extensions', 'editFiles', 'runNotebooks', 'search', 'new', 'runCommands', 'runTasks', 'search', 'github']
+tools: ['edit/editFiles', 'runNotebooks', 'search', 'new', 'runCommands', 'runTasks', 'microsoft/azure-devops-mcp/*', 'usages', 'vscodeAPI', 'think', 'problems', 'changes', 'testFailure', 'openSimpleBrowser', 'fetch', 'githubRepo', 'extensions']
 ---
 # Implementation Plan Generation Mode
 
