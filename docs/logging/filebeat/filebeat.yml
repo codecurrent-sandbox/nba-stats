@@ -1,0 +1,48 @@
+filebeat.config:
+  modules:
+    path: ${path.config}/modules.d/*.yml
+    reload.enabled: false
+
+filebeat.autodiscover:
+  providers:
+    - type: docker
+      hints.enabled: true
+      templates:
+        - condition:
+            contains:
+              docker.container.name: "nba-stats"
+          config:
+            - type: container
+              paths:
+                - /var/lib/docker/containers/${data.docker.container.id}/*.log
+              json.keys_under_root: true
+              json.add_error_key: true
+              processors:
+                - add_docker_metadata: ~
+                - add_fields:
+                    target: ''
+                    fields:
+                      service: '${data.docker.container.labels.service:unknown}'
+                      environment: '${ENVIRONMENT:development}'
+
+# Send logs to Logstash
+output.logstash:
+  hosts: ["logstash:5001"]
+  compression_level: 3
+  loadbalance: true
+
+# Logging configuration
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat
+  keepfiles: 7
+  permissions: 0644
+
+# Processors
+processors:
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+  - add_cloud_metadata: ~
+  - add_docker_metadata: ~

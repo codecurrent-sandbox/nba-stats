@@ -1,0 +1,142 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+pnpm-debug.log*
+
+# Testing
+coverage/
+*.coverage
+.nyc_output/
+.jest/
+
+# Production builds
+build/
+dist/
+out/
+*.log
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*.local
+
+# IDE and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+pnpm-debug.log*
+
+# API service specific
+services/api/logs/
+services/api/dist/
+services/api/node_modules/
+services/api/.env
+services/api/*.log
+
+# Frontend specific
+frontend/build/
+frontend/dist/
+frontend/node_modules/
+frontend/.env
+frontend/.cache/
+frontend/.parcel-cache/
+
+# Docker
+.docker/
+docker-compose.override.yml
+*.docker
+
+# Database
+*.sqlite
+*.sqlite3
+*.db
+data/
+pgdata/
+mongodb-data/
+
+# Cache
+.cache/
+*.cache
+.redis/
+redis-data/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# TypeScript
+*.tsbuildinfo
+.tscache/
+
+# ESLint
+.eslintcache
+
+# Terraform (if used for infrastructure)
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfvars
+
+# Kubernetes secrets (if used)
+*secret*.yaml
+*secret*.yml
+
+# SSL certificates
+*.pem
+*.key
+*.crt
+*.cert
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# ELK Stack data
+elasticsearch-data/
+filebeat-data/
+logstash-data/
+
+# Python (if any Python tools are used)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+
+# Miscellaneous
+.npmrc
+.yarnrc

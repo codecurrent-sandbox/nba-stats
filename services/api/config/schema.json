@@ -1,0 +1,227 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "NBA Stats API Configuration Schema",
+  "description": "JSON Schema for validating NBA Stats API configuration",
+  "type": "object",
+  "required": ["server", "database", "cache", "logging"],
+  "properties": {
+    "server": {
+      "type": "object",
+      "required": ["port", "host"],
+      "properties": {
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "Server port number"
+        },
+        "host": {
+          "type": "string",
+          "description": "Server host address"
+        },
+        "cors": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "origins": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Allowed CORS origins"
+            }
+          }
+        },
+        "rateLimit": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "windowMs": {
+              "type": "integer",
+              "description": "Rate limit window in milliseconds"
+            },
+            "maxRequests": {
+              "type": "integer",
+              "description": "Maximum requests per window"
+            }
+          }
+        }
+      }
+    },
+    "database": {
+      "type": "object",
+      "required": ["type", "connection"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["postgresql", "mongodb", "mysql"],
+          "description": "Database type"
+        },
+        "connection": {
+          "type": "object",
+          "required": ["host", "port", "database"],
+          "properties": {
+            "host": {
+              "type": "string",
+              "description": "Database host"
+            },
+            "port": {
+              "type": "integer",
+              "description": "Database port"
+            },
+            "database": {
+              "type": "string",
+              "description": "Database name"
+            },
+            "username": {
+              "type": "string",
+              "description": "Database username"
+            },
+            "password": {
+              "type": "string",
+              "description": "Database password"
+            },
+            "ssl": {
+              "type": "boolean",
+              "default": false,
+              "description": "Enable SSL connection"
+            }
+          }
+        },
+        "pool": {
+          "type": "object",
+          "properties": {
+            "min": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Minimum pool size"
+            },
+            "max": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Maximum pool size"
+            }
+          }
+        }
+      }
+    },
+    "cache": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["redis", "memcached", "memory"],
+          "description": "Cache type"
+        },
+        "connection": {
+          "type": "object",
+          "properties": {
+            "host": {
+              "type": "string",
+              "description": "Cache server host"
+            },
+            "port": {
+              "type": "integer",
+              "description": "Cache server port"
+            },
+            "password": {
+              "type": "string",
+              "description": "Cache server password"
+            }
+          }
+        },
+        "ttl": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Default TTL in seconds"
+        }
+      }
+    },
+    "logging": {
+      "type": "object",
+      "required": ["level"],
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": ["error", "warn", "info", "debug", "trace"],
+          "description": "Logging level"
+        },
+        "format": {
+          "type": "string",
+          "enum": ["json", "text"],
+          "default": "json",
+          "description": "Log format"
+        },
+        "transports": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["console", "file", "http"],
+                "description": "Transport type"
+              },
+              "options": {
+                "type": "object",
+                "description": "Transport-specific options"
+              }
+            }
+          }
+        }
+      }
+    },
+    "features": {
+      "type": "object",
+      "properties": {
+        "enableMetrics": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable metrics collection"
+        },
+        "enableTracing": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable distributed tracing"
+        },
+        "enableHealthCheck": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable health check endpoint"
+        }
+      }
+    },
+    "security": {
+      "type": "object",
+      "properties": {
+        "jwt": {
+          "type": "object",
+          "properties": {
+            "secret": {
+              "type": "string",
+              "description": "JWT secret key"
+            },
+            "expiresIn": {
+              "type": "string",
+              "description": "JWT expiration time"
+            }
+          }
+        },
+        "apiKeys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Valid API keys"
+        }
+      }
+    }
+  }
+}
