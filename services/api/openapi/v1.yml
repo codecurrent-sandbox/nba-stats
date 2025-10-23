@@ -1,0 +1,368 @@
+openapi: 3.0.0
+info:
+  title: NBA Stats API
+  description: RESTful API for NBA statistics and analytics
+  version: 1.0.0
+  contact:
+    name: Development Team
+    email: dev@nba-stats.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:3000/api
+    description: Local development server
+  - url: https://api.nba-stats.com/api
+    description: Production server
+
+paths:
+  /players:
+    get:
+      summary: Get list of all players
+      operationId: getPlayers
+      tags:
+        - Players
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of players
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayerList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /players/{playerId}:
+    get:
+      summary: Get player details
+      operationId: getPlayerById
+      tags:
+        - Players
+      parameters:
+        - name: playerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Player details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Player'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /teams:
+    get:
+      summary: Get list of all teams
+      operationId: getTeams
+      tags:
+        - Teams
+      responses:
+        '200':
+          description: List of teams
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamList'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /teams/{teamId}:
+    get:
+      summary: Get team details
+      operationId: getTeamById
+      tags:
+        - Teams
+      parameters:
+        - name: teamId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Team details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Team'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /games:
+    get:
+      summary: Get list of games
+      operationId: getGames
+      tags:
+        - Games
+      parameters:
+        - name: date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: List of games
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /games/{gameId}:
+    get:
+      summary: Get game details
+      operationId: getGameById
+      tags:
+        - Games
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Game details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Game'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /stats/player/{playerId}:
+    get:
+      summary: Get player statistics
+      operationId: getPlayerStats
+      tags:
+        - Statistics
+      parameters:
+        - name: playerId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: season
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Player statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayerStats'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  schemas:
+    Player:
+      type: object
+      required:
+        - id
+        - firstName
+        - lastName
+        - position
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique player identifier
+        firstName:
+          type: string
+        lastName:
+          type: string
+        position:
+          type: string
+          enum: [PG, SG, SF, PF, C]
+        number:
+          type: integer
+        height:
+          type: string
+        weight:
+          type: integer
+        dateOfBirth:
+          type: string
+          format: date
+        college:
+          type: string
+
+    PlayerList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Player'
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+
+    Team:
+      type: object
+      required:
+        - id
+        - name
+        - abbreviation
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        abbreviation:
+          type: string
+        city:
+          type: string
+        founded:
+          type: integer
+
+    TeamList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Team'
+        total:
+          type: integer
+
+    Game:
+      type: object
+      required:
+        - id
+        - homeTeam
+        - awayTeam
+        - date
+      properties:
+        id:
+          type: string
+          format: uuid
+        homeTeam:
+          $ref: '#/components/schemas/Team'
+        awayTeam:
+          $ref: '#/components/schemas/Team'
+        date:
+          type: string
+          format: date-time
+        homeScore:
+          type: integer
+        awayScore:
+          type: integer
+        status:
+          type: string
+          enum: [scheduled, in-progress, completed, cancelled]
+
+    GameList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Game'
+        total:
+          type: integer
+
+    PlayerStats:
+      type: object
+      properties:
+        playerId:
+          type: string
+          format: uuid
+        season:
+          type: integer
+        gamesPlayed:
+          type: integer
+        pointsPerGame:
+          type: number
+          format: float
+        assistsPerGame:
+          type: number
+          format: float
+        reboundsPerGame:
+          type: number
+          format: float
+        fieldGoalPercentage:
+          type: number
+          format: float
+        threePointPercentage:
+          type: number
+          format: float
+        freeThrowPercentage:
+          type: number
+          format: float
+
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+
+  responses:
+    BadRequest:
+      description: Bad Request - Invalid parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
