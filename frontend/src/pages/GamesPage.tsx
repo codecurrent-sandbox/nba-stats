@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import GameList from '../components/GameList';
-import type { Game, Team } from '../types/nba';
+import type { Game } from '../types/nba';
+import { apiClient, getErrorMessage } from '../lib/apiClient';
 
 const GamesPage: React.FC = () => {
   const navigate = useNavigate();
@@ -14,62 +15,34 @@ const GamesPage: React.FC = () => {
   const statuses = ['scheduled', 'in-progress', 'completed', 'cancelled'];
 
   useEffect(() => {
-    // TODO: Replace with actual API call
+    let cancelled = false;
+
     const fetchGames = async () => {
       try {
         setLoading(true);
-        
-        // Mock teams for game data
-        const mockTeams: Team[] = [
-          { id: '1', name: 'Lakers', abbreviation: 'LAL', city: 'Los Angeles', conference: 'Western' },
-          { id: '2', name: 'Warriors', abbreviation: 'GSW', city: 'Golden State', conference: 'Western' },
-          { id: '3', name: 'Celtics', abbreviation: 'BOS', city: 'Boston', conference: 'Eastern' },
-          { id: '4', name: 'Heat', abbreviation: 'MIA', city: 'Miami', conference: 'Eastern' },
-        ];
+        setError(null);
 
-        // Mock game data
-        const mockGames: Game[] = [
-          {
-            id: '1',
-            homeTeam: mockTeams[0],
-            awayTeam: mockTeams[1],
-            date: '2025-10-23T20:00:00Z',
-            homeScore: 108,
-            awayScore: 112,
-            status: 'completed',
-            season: 2024
-          },
-          {
-            id: '2',
-            homeTeam: mockTeams[2],
-            awayTeam: mockTeams[3],
-            date: '2025-10-24T19:30:00Z',
-            status: 'scheduled',
-            season: 2024
-          },
-          {
-            id: '3',
-            homeTeam: mockTeams[1],
-            awayTeam: mockTeams[2],
-            date: '2025-10-22T21:00:00Z',
-            homeScore: 95,
-            awayScore: 89,
-            status: 'completed',
-            season: 2024
-          }
-        ];
-        
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 600));
-        setGames(mockGames);
+  const response = await apiClient.getGames({ limit: 50 });
+        if (!cancelled) {
+          setGames(response.items ?? []);
+        }
       } catch (err) {
-        setError('Failed to load games');
+        if (!cancelled) {
+          setError(getErrorMessage(err));
+          setGames([]);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
     fetchGames();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleGameClick = (game: Game) => {

@@ -1,4 +1,10 @@
-import { LogLevel, LoggerConfig } from './logger';
+import { LogLevel } from './logger';
+import type { LoggerConfig } from './logger';
+
+const LOG_ENDPOINT = import.meta.env.VITE_LOG_ENDPOINT ?? '/api/logs';
+const APP_INSIGHTS_CONNECTION_STRING = import.meta.env.VITE_APPINSIGHTS_CONNECTION_STRING;
+const SENTRY_DSN = import.meta.env.VITE_SENTRY_DSN;
+const APP_ENV = import.meta.env.VITE_APP_ENV;
 
 /**
  * Frontend logger configuration for different environments
@@ -22,11 +28,11 @@ export const productionConfig: LoggerConfig = {
   level: LogLevel.WARN,
   enableConsole: false, // Disable console logs in production
   enableRemote: true,
-  remoteEndpoint: process.env.REACT_APP_LOG_ENDPOINT || '/api/logs',
+  remoteEndpoint: LOG_ENDPOINT,
   enableErrorTracking: true,
   errorTrackingService: 'applicationinsights',
   errorTrackingConfig: {
-    connectionString: process.env.REACT_APP_APPINSIGHTS_CONNECTION_STRING,
+    connectionString: APP_INSIGHTS_CONNECTION_STRING,
     enableAutoRouteTracking: true,
     disableFetchTracking: false,
     enableCorsCorrelation: true,
@@ -42,11 +48,11 @@ export const stagingConfig: LoggerConfig = {
   level: LogLevel.INFO,
   enableConsole: true,
   enableRemote: true,
-  remoteEndpoint: process.env.REACT_APP_LOG_ENDPOINT || '/api/logs',
+  remoteEndpoint: LOG_ENDPOINT,
   enableErrorTracking: true,
   errorTrackingService: 'applicationinsights',
   errorTrackingConfig: {
-    connectionString: process.env.REACT_APP_APPINSIGHTS_CONNECTION_STRING,
+    connectionString: APP_INSIGHTS_CONNECTION_STRING,
     enableAutoRouteTracking: true,
   },
   sampleRate: 1.0,
@@ -68,8 +74,8 @@ export const testConfig: LoggerConfig = {
  * Get configuration based on environment
  */
 export function getLoggerConfig(): LoggerConfig {
-  const env = process.env.NODE_ENV || 'development';
-  const reactEnv = process.env.REACT_APP_ENV || env;
+  const mode = import.meta.env.MODE ?? 'development';
+  const reactEnv = APP_ENV ?? mode;
 
   switch (reactEnv) {
     case 'production':
@@ -91,19 +97,22 @@ export const sentryProductionConfig: LoggerConfig = {
   level: LogLevel.WARN,
   enableConsole: false,
   enableRemote: true,
-  remoteEndpoint: process.env.REACT_APP_LOG_ENDPOINT || '/api/logs',
+  remoteEndpoint: LOG_ENDPOINT,
   enableErrorTracking: true,
   errorTrackingService: 'sentry',
   errorTrackingConfig: {
-    dsn: process.env.REACT_APP_SENTRY_DSN,
+    dsn: SENTRY_DSN,
     environment: 'production',
     tracesSampleRate: 0.1, // Sample 10% of transactions
-    beforeSend(event: any, hint: any) {
+    beforeSend(
+      event: Record<string, unknown>,
+      hint: { originalException?: { message?: string } } = {}
+    ) {
       // Filter out specific errors if needed
-      if (event.exception) {
+      if ('exception' in event) {
         const error = hint.originalException;
         // Example: Ignore network errors
-        if (error && error.message && error.message.includes('Network Error')) {
+        if (error?.message && error.message.includes('Network Error')) {
           return null;
         }
       }

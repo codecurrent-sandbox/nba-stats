@@ -4,14 +4,12 @@ import type { Player } from '../types/nba';
 interface PlayerCardProps {
   player: Player;
   onClick?: (player: Player) => void;
-  showTeam?: boolean;
   className?: string;
 }
 
 const PlayerCard: React.FC<PlayerCardProps> = ({ 
   player, 
   onClick, 
-  showTeam = false, 
   className = '' 
 }) => {
   const handleClick = () => {

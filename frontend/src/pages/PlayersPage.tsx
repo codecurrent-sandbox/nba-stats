@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PlayerList from '../components/PlayerList';
 import type { Player } from '../types/nba';
+import { apiClient, getErrorMessage } from '../lib/apiClient';
 
 const PlayersPage: React.FC = () => {
   const navigate = useNavigate();
@@ -14,58 +15,34 @@ const PlayersPage: React.FC = () => {
   const positions = ['PG', 'SG', 'SF', 'PF', 'C'];
 
   useEffect(() => {
-    // TODO: Replace with actual API call
+    let cancelled = false;
+
     const fetchPlayers = async () => {
       try {
         setLoading(true);
-        // Mock data for now
-        const mockPlayers: Player[] = [
-          {
-            id: '1',
-            firstName: 'LeBron',
-            lastName: 'James',
-            position: 'SF',
-            number: 6,
-            height: '6\'9"',
-            weight: 250,
-            college: 'St. Vincent-St. Mary HS',
-            dateOfBirth: '1984-12-30'
-          },
-          {
-            id: '2',
-            firstName: 'Stephen',
-            lastName: 'Curry',
-            position: 'PG',
-            number: 30,
-            height: '6\'2"',
-            weight: 185,
-            college: 'Davidson',
-            dateOfBirth: '1988-03-14'
-          },
-          {
-            id: '3',
-            firstName: 'Kevin',
-            lastName: 'Durant',
-            position: 'SF',
-            number: 35,
-            height: '6\'10"',
-            weight: 240,
-            college: 'Texas',
-            dateOfBirth: '1988-09-29'
-          }
-        ];
-        
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        setPlayers(mockPlayers);
+        setError(null);
+
+  const response = await apiClient.getPlayers({ limit: 50 });
+        if (!cancelled) {
+          setPlayers(response.items ?? []);
+        }
       } catch (err) {
-        setError('Failed to load players');
+        if (!cancelled) {
+          setError(getErrorMessage(err));
+          setPlayers([]);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
     fetchPlayers();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handlePlayerClick = (player: Player) => {

@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import type { Player, PlayerStats } from '../types/nba';
 import { PlayerStatsGrid } from '../components/StatCard';
+import { apiClient, getErrorMessage, isApiError } from '../lib/apiClient';
 
 const PlayerDetailPage: React.FC = () => {
   const { playerId } = useParams<{ playerId: string }>();
@@ -12,44 +13,30 @@ const PlayerDetailPage: React.FC = () => {
 
   useEffect(() => {
     const fetchPlayerData = async () => {
-      if (!playerId) return;
+      if (!playerId) {
+        return;
+      }
 
       try {
         setLoading(true);
-        // Mock data - TODO: Replace with actual API call
-        const mockPlayer: Player = {
-          id: playerId,
-          firstName: 'LeBron',
-          lastName: 'James',
-          position: 'SF',
-          number: 6,
-          height: '6\'9"',
-          weight: 250,
-          college: 'St. Vincent-St. Mary HS',
-          dateOfBirth: '1984-12-30'
-        };
+        setError(null);
 
-        const mockStats: PlayerStats = {
-          playerId: playerId,
-          season: 2024,
-          gamesPlayed: 65,
-          pointsPerGame: 25.3,
-          assistsPerGame: 7.8,
-          reboundsPerGame: 8.1,
-          fieldGoalPercentage: 52.4,
-          threePointPercentage: 35.8,
-          freeThrowPercentage: 73.2,
-          stealsPerGame: 1.3,
-          blocksPerGame: 0.7,
-          turnoversPerGame: 3.8,
-          minutesPerGame: 35.2
-        };
+        const [playerResponse, statsResponse] = await Promise.all([
+          apiClient.getPlayer(playerId),
+          apiClient.getPlayerStats(playerId).catch((err) => {
+            if (isApiError(err) && err.status === 404) {
+              return null;
+            }
+            throw err;
+          })
+        ]);
 
-        await new Promise(resolve => setTimeout(resolve, 800));
-        setPlayer(mockPlayer);
-        setPlayerStats(mockStats);
+        setPlayer(playerResponse);
+        setPlayerStats(statsResponse);
       } catch (err) {
-        setError('Failed to load player data');
+        setError(getErrorMessage(err));
+        setPlayer(null);
+        setPlayerStats(null);
       } finally {
         setLoading(false);
       }

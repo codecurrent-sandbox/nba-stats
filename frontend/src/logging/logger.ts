@@ -8,12 +8,14 @@
 /**
  * Log levels for frontend logging
  */
-export enum LogLevel {
-  ERROR = 'error',
-  WARN = 'warn',
-  INFO = 'info',
-  DEBUG = 'debug',
-}
+export const LogLevel = {
+  ERROR: 'error',
+  WARN: 'warn',
+  INFO: 'info',
+  DEBUG: 'debug',
+} as const;
+
+export type LogLevel = typeof LogLevel[keyof typeof LogLevel];
 
 /**
  * Log entry metadata
@@ -26,7 +28,7 @@ export interface LogMetadata {
   sessionId?: string;
   component?: string;
   action?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 /**
@@ -50,7 +52,7 @@ export interface LoggerConfig {
   remoteEndpoint?: string;
   enableErrorTracking: boolean;
   errorTrackingService?: 'applicationinsights' | 'sentry' | 'custom';
-  errorTrackingConfig?: any;
+  errorTrackingConfig?: Record<string, unknown>;
   sampleRate?: number; // 0-1, percentage of logs to send remotely
   environment?: string;
 }
@@ -72,7 +74,7 @@ interface RemoteLogPayload {
 class FrontendLogger {
   private config: LoggerConfig;
   private sessionId: string;
-  private errorTracker: any;
+  private errorTracker: unknown;
 
   constructor(config: LoggerConfig) {
     this.config = config;
@@ -138,7 +140,7 @@ class FrontendLogger {
    * Check if a log should be sent based on log level
    */
   private shouldLog(level: LogLevel): boolean {
-    const levels = [LogLevel.ERROR, LogLevel.WARN, LogLevel.INFO, LogLevel.DEBUG];
+    const levels: LogLevel[] = [LogLevel.ERROR, LogLevel.WARN, LogLevel.INFO, LogLevel.DEBUG];
     const configLevelIndex = levels.indexOf(this.config.level);
     const logLevelIndex = levels.indexOf(level);
     return logLevelIndex <= configLevelIndex;
@@ -173,7 +175,7 @@ class FrontendLogger {
     if (!this.config.enableConsole) return;
 
     const enhancedMeta = this.enhanceMetadata(metadata);
-    const logMessage = `[${level.toUpperCase()}] ${message}`;
+  const logMessage = `[${level.toUpperCase()}] ${message}`;
 
     switch (level) {
       case LogLevel.ERROR:
@@ -317,12 +319,16 @@ class FrontendLogger {
   /**
    * Set user context
    */
-  public setUserContext(userId: string, properties?: Record<string, any>): void {
+  public setUserContext(userId: string, properties?: Record<string, unknown>): void {
     if (this.errorTracker && this.config.errorTrackingService === 'applicationinsights') {
       // this.errorTracker.setAuthenticatedUserContext(userId, undefined, true);
     } else if (this.errorTracker && this.config.errorTrackingService === 'sentry') {
       // this.errorTracker.setUser({ id: userId, ...properties });
     }
+
+    // Mark parameters as intentionally unused when tracker integrations are disabled
+    void userId;
+    void properties;
   }
 
   /**
@@ -377,7 +383,7 @@ export const logger = {
     getLogger().trackApiCall(method, url, statusCode, duration, metadata),
   trackPerformance: (metric: string, value: number, metadata?: LogMetadata) =>
     getLogger().trackPerformance(metric, value, metadata),
-  setUserContext: (userId: string, properties?: Record<string, any>) =>
+  setUserContext: (userId: string, properties?: Record<string, unknown>) =>
     getLogger().setUserContext(userId, properties),
   clearUserContext: () => getLogger().clearUserContext(),
 };

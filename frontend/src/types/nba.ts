@@ -73,10 +73,12 @@ export interface ApiResponse<T> {
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;
-  page: number;
-  limit: number;
-  hasNext: boolean;
-  hasPrev: boolean;
+  limit?: number;
+  offset?: number;
+  page?: number;
+  pageSize?: number;
+  hasNext?: boolean;
+  hasPrev?: boolean;
 }
 
 export interface LoadingState {

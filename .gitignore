@@ -16,6 +16,7 @@ coverage/
 # Production builds
 build/
 dist/
+dist-ssr/
 out/
 *.log
 
@@ -29,13 +30,19 @@ out/
 
 # IDE and editors
 .vscode/
+!.vscode/extensions.json
 .idea/
 *.swp
 *.swo
+*.sw?
 *~
 .DS_Store
 *.sublime-project
 *.sublime-workspace
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
 
 # Logs
 logs/

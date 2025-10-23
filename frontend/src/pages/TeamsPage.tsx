@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import TeamList from '../components/TeamList';
 import type { Team } from '../types/nba';
+import { apiClient, getErrorMessage } from '../lib/apiClient';
 
 const TeamsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -14,61 +15,34 @@ const TeamsPage: React.FC = () => {
   const conferences = ['Eastern', 'Western'];
 
   useEffect(() => {
-    // TODO: Replace with actual API call
+    let cancelled = false;
+
     const fetchTeams = async () => {
       try {
         setLoading(true);
-        // Mock data for now
-        const mockTeams: Team[] = [
-          {
-            id: '1',
-            name: 'Lakers',
-            abbreviation: 'LAL',
-            city: 'Los Angeles',
-            conference: 'Western',
-            division: 'Pacific',
-            founded: 1947
-          },
-          {
-            id: '2',
-            name: 'Warriors',
-            abbreviation: 'GSW',
-            city: 'Golden State',
-            conference: 'Western',
-            division: 'Pacific',
-            founded: 1946
-          },
-          {
-            id: '3',
-            name: 'Celtics',
-            abbreviation: 'BOS',
-            city: 'Boston',
-            conference: 'Eastern',
-            division: 'Atlantic',
-            founded: 1946
-          },
-          {
-            id: '4',
-            name: 'Heat',
-            abbreviation: 'MIA',
-            city: 'Miami',
-            conference: 'Eastern',
-            division: 'Southeast',
-            founded: 1988
-          }
-        ];
-        
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 800));
-        setTeams(mockTeams);
+        setError(null);
+
+  const response = await apiClient.getTeams();
+        if (!cancelled) {
+          setTeams(response.items ?? []);
+        }
       } catch (err) {
-        setError('Failed to load teams');
+        if (!cancelled) {
+          setError(getErrorMessage(err));
+          setTeams([]);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
     fetchTeams();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleTeamClick = (team: Team) => {
