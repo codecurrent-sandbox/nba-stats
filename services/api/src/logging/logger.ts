@@ -13,6 +13,17 @@ export enum LogLevel {
 }
 
 /**
+ * Correlation context for tracking related log entries
+ */
+export interface LogContext {
+  correlationId?: string;
+  requestId?: string;
+  userId?: string;
+  sessionId?: string;
+  traceId?: string;
+}
+
+/**
  * Custom log metadata interface
  */
 export interface LogMetadata {
@@ -24,6 +35,26 @@ export interface LogMetadata {
   duration?: number;
   error?: Error;
   [key: string]: any;
+}
+
+/**
+ * Performance metrics for structured logging
+ */
+export interface PerformanceMetrics {
+  startTime: number;
+  duration?: number;
+  memoryUsage?: NodeJS.MemoryUsage;
+}
+
+/**
+ * Error information for structured logging
+ */
+export interface ErrorInfo {
+  message: string;
+  code?: string;
+  statusCode?: number;
+  details?: Record<string, unknown>;
+  stack?: string;
 }
 
 /**
@@ -114,6 +145,226 @@ export function createLogger(config: LoggerConfig): winston.Logger {
   });
 
   return logger;
+}
+
+/**
+ * Structured Logger Wrapper
+ *
+ * Provides a high-level abstraction over Winston for consistent,
+ * structured logging with context management and fluent API.
+ *
+ * Features:
+ * - Context binding (correlation IDs, request IDs, user IDs)
+ * - Performance metrics tracking
+ * - Structured metadata support
+ * - Fluent method chaining
+ * - Child logger creation with inherited context
+ *
+ * @example
+ * const logger = new StructuredLogger();
+ * logger
+ *   .withCorrelationId('req-123')
+ *   .withUserId('user-456')
+ *   .info('User action performed', { action: 'login' });
+ *
+ * @example
+ * const logger = new StructuredLogger();
+ * logger.withTimer().startTimer();
+ * // ... some operation
+ * logger.info('Operation completed'); // Will include duration
+ */
+export class StructuredLogger {
+  private winstonLogger: winston.Logger;
+  private context: LogContext = {};
+  private metrics: PerformanceMetrics | null = null;
+
+  constructor(winstonLogger?: winston.Logger) {
+    this.winstonLogger = winstonLogger || getLogger();
+  }
+
+  /**
+   * Set correlation ID for tracking related operations
+   */
+  withCorrelationId(id: string): this {
+    this.context.correlationId = id;
+    return this;
+  }
+
+  /**
+   * Set request ID for HTTP request tracking
+   */
+  withRequestId(id: string): this {
+    this.context.requestId = id;
+    return this;
+  }
+
+  /**
+   * Set user ID for audit logging
+   */
+  withUserId(id: string): this {
+    this.context.userId = id;
+    return this;
+  }
+
+  /**
+   * Set session ID for session tracking
+   */
+  withSessionId(id: string): this {
+    this.context.sessionId = id;
+    return this;
+  }
+
+  /**
+   * Set trace ID for distributed tracing
+   */
+  withTraceId(id: string): this {
+    this.context.traceId = id;
+    return this;
+  }
+
+  /**
+   * Initialize timer for performance metrics
+   */
+  withTimer(): this {
+    this.metrics = { startTime: Date.now() };
+    return this;
+  }
+
+  /**
+   * Start the performance timer
+   */
+  startTimer(): this {
+    if (!this.metrics) {
+      this.metrics = { startTime: Date.now() };
+    } else {
+      this.metrics.startTime = Date.now();
+    }
+    return this;
+  }
+
+  /**
+   * Get elapsed time in milliseconds
+   */
+  private getElapsedTime(): number {
+    if (!this.metrics) return 0;
+    return Date.now() - this.metrics.startTime;
+  }
+
+  /**
+   * Log at DEBUG level
+   */
+  debug(message: string, metadata?: LogMetadata): this {
+    this.log('debug', message, metadata);
+    return this;
+  }
+
+  /**
+   * Log at INFO level
+   */
+  info(message: string, metadata?: LogMetadata): this {
+    this.log('info', message, metadata);
+    return this;
+  }
+
+  /**
+   * Log at WARN level
+   */
+  warn(message: string, metadata?: LogMetadata): this {
+    this.log('warn', message, metadata);
+    return this;
+  }
+
+  /**
+   * Log at ERROR level with error details
+   */
+  error(message: string, error?: Error | ErrorInfo | string, metadata?: LogMetadata): this {
+    let errorInfo: ErrorInfo | undefined;
+
+    if (!error) {
+      errorInfo = undefined;
+    } else if (typeof error === 'string') {
+      errorInfo = { message: error };
+    } else if (error instanceof Error) {
+      errorInfo = {
+        message: error.message,
+        stack: error.stack,
+        code: (error as any).code,
+        statusCode: (error as any).statusCode,
+      };
+    } else {
+      errorInfo = error as ErrorInfo;
+    }
+
+    this.log('error', message, {
+      ...metadata,
+      error: errorInfo,
+    });
+    return this;
+  }
+
+  /**
+   * Core logging method with context merging
+   */
+  private log(
+    level: string,
+    message: string,
+    metadata?: LogMetadata,
+  ): void {
+    const duration = this.metrics ? this.getElapsedTime() : undefined;
+
+    const enrichedMetadata: LogMetadata = {
+      ...this.context,
+      ...metadata,
+      ...(duration !== undefined && { duration }),
+    };
+
+    this.winstonLogger.log(level, message, enrichedMetadata);
+
+    // Reset metrics after logging
+    if (this.metrics) {
+      this.metrics = null;
+    }
+  }
+
+  /**
+   * Create a child logger inheriting current context
+   */
+  child(): StructuredLogger {
+    const child = new StructuredLogger(this.winstonLogger);
+    child.context = { ...this.context };
+    return child;
+  }
+
+  /**
+   * Clear all context information
+   */
+  clearContext(): this {
+    this.context = {};
+    return this;
+  }
+
+  /**
+   * Clear performance metrics
+   */
+  clearMetrics(): this {
+    this.metrics = null;
+    return this;
+  }
+
+  /**
+   * Get current context for debugging
+   */
+  getContext(): LogContext {
+    return { ...this.context };
+  }
+
+  /**
+   * Set entire context at once
+   */
+  setContext(context: LogContext): this {
+    this.context = { ...context };
+    return this;
+  }
 }
 
 /**
@@ -262,5 +513,17 @@ export function errorLoggingMiddleware() {
 function generateRequestId(): string {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
+
+/**
+ * Create a new StructuredLogger instance
+ */
+export function createStructuredLogger(): StructuredLogger {
+  return new StructuredLogger();
+}
+
+/**
+ * Default structured logger instance
+ */
+export const structuredLogger = new StructuredLogger();
 
 export default logger;
