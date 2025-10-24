@@ -51,14 +51,14 @@ export class CacheKeyBuilder {
 /**
  * Common cache key prefixes
  */
-export enum CachePrefix {
-  PLAYER = 'player',
-  TEAM = 'team',
-  GAME = 'game',
-  STATS = 'stats',
-  HEALTH = 'health',
-  SEARCH = 'search',
-}
+export const CachePrefix = {
+  PLAYER: 'player',
+  TEAM: 'team',
+  GAME: 'game',
+  STATS: 'stats',
+  HEALTH: 'health',
+  SEARCH: 'search',
+} as const;
 
 /**
  * InMemoryCache class - Provides TTL-based caching for API responses
@@ -66,7 +66,7 @@ export enum CachePrefix {
 export class InMemoryCache {
   private cache: Map<string, CacheEntry<unknown>> = new Map();
   private readonly defaultTTL: number; // in milliseconds
-  private cleanupInterval: NodeJS.Timeout | null = null;
+  private cleanupInterval: ReturnType<typeof setInterval> | null = null;
   private isDisposed = false;
 
   /**
@@ -242,11 +242,6 @@ export class InMemoryCache {
     this.cleanupInterval = setInterval(() => {
       this.cleanup();
     }, 60 * 1000);
-
-    // Allow interval to be garbage collected if this is the only reference
-    if (this.cleanupInterval.unref) {
-      this.cleanupInterval.unref();
-    }
   }
 
   /**

@@ -37,15 +37,15 @@ services:
         reservations:
           cpus: '0.5'
           memory: 256M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
     labels:
       - "com.example.monitoring=true"
       - "com.example.service=nba-stats-api"
       - "com.example.version=1.0.0"
-    restart_policy:
-      condition: on-failure
-      delay: 5s
-      max_attempts: 3
-      window: 120s
 
   frontend:
     build:
@@ -95,10 +95,14 @@ services:
     environment:
       - PGADMIN_DEFAULT_EMAIL=admin@nba-stats.com
       - PGADMIN_DEFAULT_PASSWORD=admin
+      - PGADMIN_CONFIG_SERVER_JSON_FILE='/pgadmin4/servers.json'
+      - PGADMIN_CONFIG_ENHANCED_IAM_LOGGING=False
     ports:
       - "5050:80"
     depends_on:
       - postgres
+    volumes:
+      - ./services/pgadmin/servers.json:/pgadmin4/servers.json
     networks:
       - nba-network
 

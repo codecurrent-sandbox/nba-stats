@@ -8,7 +8,7 @@ import type {
   PaginatedResponse
 } from '../types/nba';
 import { logger } from '../logging/logger';
-import { cacheManager, CachePrefix, CacheKeyBuilder } from './cache';
+import { cacheManager, CacheKeyBuilder } from './cache';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 const DEFAULT_TIMEOUT = 10000;
@@ -291,7 +291,7 @@ export const isNetworkError = (error: unknown): boolean => isApiError(error) && 
 export const isTimeoutError = (error: unknown): boolean => isApiError(error) && error.code === 'TIMEOUT';
 
 // Export cache utilities
-export { cacheManager, CacheKeyBuilder, CachePrefix } from './cache';
+export { cacheManager, CacheKeyBuilder } from './cache';
 export type { CacheOptions } from './cache';
 
 export { ApiError };

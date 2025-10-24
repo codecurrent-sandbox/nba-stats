@@ -1,0 +1,16 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "nba-stats-db",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "postgres",
+      "Username": "postgres",
+      "Password": "postgres",
+      "SSLMode": "prefer",
+      "ConnectTimeout": 10,
+      "SavePassword": true
+    }
+  }
+}
