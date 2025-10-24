@@ -8,13 +8,17 @@ import type {
   PaginatedResponse
 } from '../types/nba';
 import { logger } from '../logging/logger';
+import { cacheManager, CachePrefix, CacheKeyBuilder } from './cache';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 const DEFAULT_TIMEOUT = 10000;
+const DEFAULT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 interface RequestOptions {
   timeout?: number;
   headers?: Record<string, string>;
+  skipCache?: boolean;
+  cacheTTL?: number;
 }
 
 class ApiError extends Error {
@@ -32,6 +36,7 @@ class ApiError extends Error {
 class ApiClient {
   private readonly baseURL: string;
   private readonly defaultHeaders: Record<string, string>;
+  private readonly cache = cacheManager;
 
   constructor(baseURL: string = API_BASE_URL) {
     this.baseURL = baseURL.endsWith('/') ? baseURL.slice(0, -1) : baseURL;
@@ -44,10 +49,20 @@ class ApiClient {
     endpoint: string,
     options: RequestInit & RequestOptions = {}
   ): Promise<T> {
-    const url = `${this.baseURL}${endpoint}`;
-    const { timeout = DEFAULT_TIMEOUT, headers = {}, ...fetchOptions } = options;
+    const { timeout = DEFAULT_TIMEOUT, headers = {}, skipCache = false, cacheTTL = DEFAULT_CACHE_TTL, ...fetchOptions } = options;
     const method = (fetchOptions.method || 'GET').toUpperCase();
 
+    // Check cache for GET requests
+    if (method === 'GET' && !skipCache) {
+      const cacheKey = CacheKeyBuilder.create().add(method).add(endpoint).build();
+      const cachedValue = this.cache.get<T>(cacheKey);
+      if (cachedValue) {
+        logger.debug('Cache hit', { method, endpoint });
+        return cachedValue;
+      }
+    }
+
+    const url = `${this.baseURL}${endpoint}`;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
     const startedAt = Date.now();
@@ -93,6 +108,13 @@ class ApiClient {
 
       const rawPayload = await response.json();
       const data = this.extractData<T>(rawPayload);
+
+      // Cache successful GET responses
+      if (method === 'GET' && !skipCache) {
+        const cacheKey = CacheKeyBuilder.create().add(method).add(endpoint).build();
+        this.cache.set(cacheKey, data, { ttl: cacheTTL });
+        logger.debug('Cache set', { method, endpoint, ttl: cacheTTL });
+      }
 
       logger.trackApiCall(method, url, response.status, duration);
       return data;
@@ -217,6 +239,37 @@ class ApiClient {
     const params = new URLSearchParams({ q: query });
     return this.request<PaginatedResponse<Team>>(`/v1/search/teams?${params}`);
   }
+
+  /**
+   * Clear the cache for a specific endpoint or all cache
+   * @param endpoint - Optional endpoint to clear cache for. If not provided, clears all cache.
+   */
+  clearCache(endpoint?: string): void {
+    if (endpoint) {
+      const cacheKey = CacheKeyBuilder.create().add('GET').add(endpoint).build();
+      this.cache.delete(cacheKey);
+      logger.debug('Cache cleared for endpoint', { endpoint });
+    } else {
+      this.cache.clear();
+      logger.debug('All cache cleared');
+    }
+  }
+
+  /**
+   * Clear cache by pattern
+   * @param pattern - Pattern to match cache keys (supports wildcards with *)
+   */
+  clearCachePattern(pattern: string): void {
+    const deletedCount = this.cache.deletePattern(pattern);
+    logger.debug('Cache pattern cleared', { pattern, deletedCount });
+  }
+
+  /**
+   * Get cache statistics
+   */
+  getCacheStats() {
+    return this.cache.getStats();
+  }
 }
 
 export const apiClient = new ApiClient();
@@ -236,6 +289,10 @@ export const getErrorMessage = (error: unknown): string => {
 export const isNetworkError = (error: unknown): boolean => isApiError(error) && error.code === 'NETWORK_ERROR';
 
 export const isTimeoutError = (error: unknown): boolean => isApiError(error) && error.code === 'TIMEOUT';
+
+// Export cache utilities
+export { cacheManager, CacheKeyBuilder, CachePrefix } from './cache';
+export type { CacheOptions } from './cache';
 
 export { ApiError };
 export default apiClient;
