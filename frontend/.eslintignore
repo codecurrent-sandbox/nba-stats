@@ -1,0 +1,26 @@
+# Build output
+dist/
+build/
+
+# Dependencies
+node_modules/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE files
+.vscode/
+.idea/
+
+# Git
+.git/
+
+# Temporary files
+tmp/
+temp/
+
+# Other
+coverage/
+*.min.js
