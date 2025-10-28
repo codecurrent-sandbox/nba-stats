@@ -113,6 +113,13 @@ services/api/src/**/*.js.map
 # ESLint
 .eslintcache
 
+# Azure Developer CLI
+.azure/
+
+# Bicep compiled outputs
+infra/**/*.json
+!infra/config/schema.json
+
 # Terraform (if used for infrastructure)
 *.tfstate
 *.tfstate.*

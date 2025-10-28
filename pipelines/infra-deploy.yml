@@ -1,0 +1,476 @@
+# NBA Stats Infrastructure Deployment Pipeline
+# Deploys Azure infrastructure using Bicep IaC
+# Implements what-if analysis, approval gates, and phased deployment
+
+name: 'Infra-Deploy-$(Date:yyyyMMdd)-$(Rev:r)'
+
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - infra/**
+      - pipelines/infra-deploy.yml
+
+pr:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - infra/**
+      - pipelines/infra-deploy.yml
+
+variables:
+  - name: azureSubscription
+    value: 'azure-nba-stats-connection'
+  - name: location
+    value: 'eastus'
+  - name: vmImage
+    value: 'ubuntu-latest'
+
+stages:
+  # ==============================================================================
+  # STAGE 1: What-If Analysis for Dev Environment
+  # ==============================================================================
+  - stage: WhatIf_Dev
+    displayName: 'What-If: Dev'
+    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+    jobs:
+      - job: WhatIfDev
+        displayName: 'Run What-If Analysis (Dev)'
+        pool:
+          vmImage: $(vmImage)
+        steps:
+          - task: AzureCLI@2
+            displayName: 'Bicep What-If: Dev'
+            inputs:
+              azureSubscription: $(azureSubscription)
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                echo "Running what-if analysis for dev environment..."
+                
+                az deployment sub what-if \
+                  --name "whatif-dev-$(Build.BuildNumber)" \
+                  --location "$(location)" \
+                  --template-file "$(Build.SourcesDirectory)/infra/main.bicep" \
+                  --parameters "$(Build.SourcesDirectory)/infra/parameters/dev.bicepparam" \
+                  --parameters location='$(location)' \
+                  --parameters postgresAdminPassword='$(POSTGRES_ADMIN_PASSWORD)' \
+                  --parameters nbaApiKey='$(NBA_API_KEY)' \
+                  --result-format "FullResourcePayloads" \
+                  > "$(Build.ArtifactStagingDirectory)/whatif-dev.json"
+                
+                echo "What-if analysis complete"
+                cat "$(Build.ArtifactStagingDirectory)/whatif-dev.json"
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish What-If Results (Dev)'
+            inputs:
+              targetPath: '$(Build.ArtifactStagingDirectory)/whatif-dev.json'
+              artifact: 'whatif-dev'
+              publishLocation: 'pipeline'
+
+          - task: Bash@3
+            displayName: 'Check for Destructive Changes (Dev)'
+            inputs:
+              targetType: 'inline'
+              script: |
+                echo "Analyzing what-if results for destructive changes..."
+                
+                # Check for delete operations in what-if output
+                DESTRUCTIVE_CHANGES=$(cat "$(Build.ArtifactStagingDirectory)/whatif-dev.json" | grep -i "delete" || true)
+                
+                if [ ! -z "$DESTRUCTIVE_CHANGES" ]; then
+                  echo "##vso[task.logissue type=warning]Destructive changes detected in what-if analysis!"
+                  echo "$DESTRUCTIVE_CHANGES"
+                  
+                  # Allow override via variable
+                  if [ "$(ALLOW_DESTRUCTIVE_CHANGES)" != "true" ]; then
+                    echo "##vso[task.logissue type=error]Deployment blocked due to destructive changes. Set ALLOW_DESTRUCTIVE_CHANGES=true to override."
+                    exit 1
+                  else
+                    echo "##vso[task.logissue type=warning]Destructive changes allowed via override"
+                  fi
+                else
+                  echo "No destructive changes detected"
+                fi
+
+  # ==============================================================================
+  # STAGE 2: Deploy to Dev Environment
+  # ==============================================================================
+  - stage: Deploy_Dev
+    displayName: 'Deploy: Dev'
+    dependsOn: WhatIf_Dev
+    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+    jobs:
+      - deployment: DeployDev
+        displayName: 'Deploy Infrastructure (Dev)'
+        pool:
+          vmImage: $(vmImage)
+        environment: 'nba-stats-dev'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+
+                - task: AzureCLI@2
+                  displayName: 'Seed Secrets to Key Vault (Dev)'
+                  inputs:
+                    azureSubscription: $(azureSubscription)
+                    scriptType: 'bash'
+                    scriptLocation: 'scriptPath'
+                    scriptPath: '$(Build.SourcesDirectory)/infra/scripts/seed-secrets.sh'
+                    arguments: '--key-vault nba-stats-dev-kv-$(KV_SUFFIX) --api-key $(NBA_API_KEY)'
+                  continueOnError: true # Key Vault might not exist yet on first run
+
+                - task: AzureCLI@2
+                  displayName: 'Deploy Bicep Template (Dev)'
+                  inputs:
+                    azureSubscription: $(azureSubscription)
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      echo "Deploying to dev environment..."
+                      
+                      az deployment sub create \
+                        --name "deploy-dev-$(Build.BuildNumber)" \
+                        --location "$(location)" \
+                        --template-file "$(Build.SourcesDirectory)/infra/main.bicep" \
+                        --parameters "$(Build.SourcesDirectory)/infra/parameters/dev.bicepparam" \
+                        --parameters location='$(location)' \
+                        --parameters postgresAdminPassword='$(POSTGRES_ADMIN_PASSWORD)' \
+                        --parameters nbaApiKey='$(NBA_API_KEY)' \
+                        --output json > "$(Build.ArtifactStagingDirectory)/deployment-dev.json"
+                      
+                      echo "Deployment complete"
+                      cat "$(Build.ArtifactStagingDirectory)/deployment-dev.json"
+
+                - task: PublishPipelineArtifact@1
+                  displayName: 'Publish Deployment Outputs (Dev)'
+                  inputs:
+                    targetPath: '$(Build.ArtifactStagingDirectory)/deployment-dev.json'
+                    artifact: 'deployment-dev'
+                    publishLocation: 'pipeline'
+
+                - task: AzureCLI@2
+                  displayName: 'Initialize Database Schema (Dev)'
+                  inputs:
+                    azureSubscription: $(azureSubscription)
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      # Extract PostgreSQL server FQDN from deployment outputs
+                      POSTGRES_FQDN=$(cat "$(Build.ArtifactStagingDirectory)/deployment-dev.json" | jq -r '.properties.outputs.postgresServerFqdn.value')
+                      
+                      echo "Initializing database schema..."
+                      echo "PostgreSQL Server: $POSTGRES_FQDN"
+                      
+                      # Run database initialization script
+                      bash "$(Build.SourcesDirectory)/infra/scripts/init-database.sh" \
+                        --server "$POSTGRES_FQDN" \
+                        --database "nba_stats" \
+                        --username "nbastatsadmin" \
+                        --password "$(POSTGRES_ADMIN_PASSWORD)"
+
+                - task: Bash@3
+                  displayName: 'Tag Deployment'
+                  inputs:
+                    targetType: 'inline'
+                    script: |
+                      git tag -a "infra-dev-$(Build.BuildNumber)" -m "Infrastructure deployment to dev - $(Build.BuildNumber)"
+                      echo "Tagged deployment: infra-dev-$(Build.BuildNumber)"
+
+  # ==============================================================================
+  # STAGE 3: What-If Analysis for Test Environment
+  # ==============================================================================
+  - stage: WhatIf_Test
+    displayName: 'What-If: Test'
+    dependsOn: Deploy_Dev
+    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+    jobs:
+      - job: WhatIfTest
+        displayName: 'Run What-If Analysis (Test)'
+        pool:
+          vmImage: $(vmImage)
+        steps:
+          - task: AzureCLI@2
+            displayName: 'Bicep What-If: Test'
+            inputs:
+              azureSubscription: $(azureSubscription)
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                echo "Running what-if analysis for test environment..."
+                
+                az deployment sub what-if \
+                  --name "whatif-test-$(Build.BuildNumber)" \
+                  --location "$(location)" \
+                  --template-file "$(Build.SourcesDirectory)/infra/main.bicep" \
+                  --parameters "$(Build.SourcesDirectory)/infra/parameters/test.bicepparam" \
+                  --parameters location='$(location)' \
+                  --parameters postgresAdminPassword='$(POSTGRES_ADMIN_PASSWORD)' \
+                  --parameters nbaApiKey='$(NBA_API_KEY)' \
+                  --result-format "FullResourcePayloads" \
+                  > "$(Build.ArtifactStagingDirectory)/whatif-test.json"
+                
+                echo "What-if analysis complete"
+                cat "$(Build.ArtifactStagingDirectory)/whatif-test.json"
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish What-If Results (Test)'
+            inputs:
+              targetPath: '$(Build.ArtifactStagingDirectory)/whatif-test.json'
+              artifact: 'whatif-test'
+              publishLocation: 'pipeline'
+
+          - task: Bash@3
+            displayName: 'Check for Destructive Changes (Test)'
+            inputs:
+              targetType: 'inline'
+              script: |
+                echo "Analyzing what-if results for destructive changes..."
+                
+                DESTRUCTIVE_CHANGES=$(cat "$(Build.ArtifactStagingDirectory)/whatif-test.json" | grep -i "delete" || true)
+                
+                if [ ! -z "$DESTRUCTIVE_CHANGES" ]; then
+                  echo "##vso[task.logissue type=warning]Destructive changes detected!"
+                  echo "$DESTRUCTIVE_CHANGES"
+                  
+                  if [ "$(ALLOW_DESTRUCTIVE_CHANGES)" != "true" ]; then
+                    echo "##vso[task.logissue type=error]Deployment blocked. Set ALLOW_DESTRUCTIVE_CHANGES=true to override."
+                    exit 1
+                  fi
+                fi
+
+  # ==============================================================================
+  # STAGE 4: Deploy to Test Environment (Manual Approval Required)
+  # ==============================================================================
+  - stage: Deploy_Test
+    displayName: 'Deploy: Test'
+    dependsOn: WhatIf_Test
+    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+    jobs:
+      - deployment: DeployTest
+        displayName: 'Deploy Infrastructure (Test)'
+        pool:
+          vmImage: $(vmImage)
+        environment: 'nba-stats-test' # Requires manual approval in Azure DevOps
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+
+                - task: AzureCLI@2
+                  displayName: 'Seed Secrets to Key Vault (Test)'
+                  inputs:
+                    azureSubscription: $(azureSubscription)
+                    scriptType: 'bash'
+                    scriptLocation: 'scriptPath'
+                    scriptPath: '$(Build.SourcesDirectory)/infra/scripts/seed-secrets.sh'
+                    arguments: '--key-vault nba-stats-test-kv-$(KV_SUFFIX) --api-key $(NBA_API_KEY)'
+                  continueOnError: true
+
+                - task: AzureCLI@2
+                  displayName: 'Deploy Bicep Template (Test)'
+                  inputs:
+                    azureSubscription: $(azureSubscription)
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      echo "Deploying to test environment..."
+                      
+                      az deployment sub create \
+                        --name "deploy-test-$(Build.BuildNumber)" \
+                        --location "$(location)" \
+                        --template-file "$(Build.SourcesDirectory)/infra/main.bicep" \
+                        --parameters "$(Build.SourcesDirectory)/infra/parameters/test.bicepparam" \
+                        --parameters location='$(location)' \
+                        --parameters postgresAdminPassword='$(POSTGRES_ADMIN_PASSWORD)' \
+                        --parameters nbaApiKey='$(NBA_API_KEY)' \
+                        --output json > "$(Build.ArtifactStagingDirectory)/deployment-test.json"
+
+                - task: PublishPipelineArtifact@1
+                  displayName: 'Publish Deployment Outputs (Test)'
+                  inputs:
+                    targetPath: '$(Build.ArtifactStagingDirectory)/deployment-test.json'
+                    artifact: 'deployment-test'
+                    publishLocation: 'pipeline'
+
+                - task: AzureCLI@2
+                  displayName: 'Initialize Database Schema (Test)'
+                  inputs:
+                    azureSubscription: $(azureSubscription)
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      POSTGRES_FQDN=$(cat "$(Build.ArtifactStagingDirectory)/deployment-test.json" | jq -r '.properties.outputs.postgresServerFqdn.value')
+                      
+                      bash "$(Build.SourcesDirectory)/infra/scripts/init-database.sh" \
+                        --server "$POSTGRES_FQDN" \
+                        --database "nba_stats" \
+                        --username "nbastatsadmin" \
+                        --password "$(POSTGRES_ADMIN_PASSWORD)"
+
+                - task: Bash@3
+                  displayName: 'Tag Deployment'
+                  inputs:
+                    targetType: 'inline'
+                    script: |
+                      git tag -a "infra-test-$(Build.BuildNumber)" -m "Infrastructure deployment to test - $(Build.BuildNumber)"
+
+  # ==============================================================================
+  # STAGE 5: What-If Analysis for Production Environment
+  # ==============================================================================
+  - stage: WhatIf_Prod
+    displayName: 'What-If: Prod'
+    dependsOn: Deploy_Test
+    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+    jobs:
+      - job: WhatIfProd
+        displayName: 'Run What-If Analysis (Prod)'
+        pool:
+          vmImage: $(vmImage)
+        steps:
+          - task: AzureCLI@2
+            displayName: 'Bicep What-If: Prod'
+            inputs:
+              azureSubscription: $(azureSubscription)
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                echo "Running what-if analysis for production environment..."
+                
+                az deployment sub what-if \
+                  --name "whatif-prod-$(Build.BuildNumber)" \
+                  --location "$(location)" \
+                  --template-file "$(Build.SourcesDirectory)/infra/main.bicep" \
+                  --parameters "$(Build.SourcesDirectory)/infra/parameters/prod.bicepparam" \
+                  --parameters location='$(location)' \
+                  --parameters postgresAdminPassword='$(POSTGRES_ADMIN_PASSWORD)' \
+                  --parameters nbaApiKey='$(NBA_API_KEY)' \
+                  --result-format "FullResourcePayloads" \
+                  > "$(Build.ArtifactStagingDirectory)/whatif-prod.json"
+                
+                cat "$(Build.ArtifactStagingDirectory)/whatif-prod.json"
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish What-If Results (Prod)'
+            inputs:
+              targetPath: '$(Build.ArtifactStagingDirectory)/whatif-prod.json'
+              artifact: 'whatif-prod'
+              publishLocation: 'pipeline'
+
+          - task: Bash@3
+            displayName: 'Check for Destructive Changes (Prod)'
+            inputs:
+              targetType: 'inline'
+              script: |
+                DESTRUCTIVE_CHANGES=$(cat "$(Build.ArtifactStagingDirectory)/whatif-prod.json" | grep -i "delete" || true)
+                
+                if [ ! -z "$DESTRUCTIVE_CHANGES" ]; then
+                  echo "##vso[task.logissue type=error]CRITICAL: Destructive changes detected in production!"
+                  echo "$DESTRUCTIVE_CHANGES"
+                  
+                  if [ "$(ALLOW_DESTRUCTIVE_CHANGES)" != "true" ]; then
+                    echo "##vso[task.logissue type=error]Production deployment blocked!"
+                    exit 1
+                  fi
+                fi
+
+  # ==============================================================================
+  # STAGE 6: Deploy to Production Environment (Manual Approval Required)
+  # ==============================================================================
+  - stage: Deploy_Prod
+    displayName: 'Deploy: Prod'
+    dependsOn: WhatIf_Prod
+    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+    jobs:
+      - deployment: DeployProd
+        displayName: 'Deploy Infrastructure (Prod)'
+        pool:
+          vmImage: $(vmImage)
+        environment: 'nba-stats-prod' # Requires manual approval
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+
+                - task: AzureCLI@2
+                  displayName: 'Seed Secrets to Key Vault (Prod)'
+                  inputs:
+                    azureSubscription: $(azureSubscription)
+                    scriptType: 'bash'
+                    scriptLocation: 'scriptPath'
+                    scriptPath: '$(Build.SourcesDirectory)/infra/scripts/seed-secrets.sh'
+                    arguments: '--key-vault nba-stats-prod-kv-$(KV_SUFFIX) --api-key $(NBA_API_KEY)'
+                  continueOnError: true
+
+                - task: AzureCLI@2
+                  displayName: 'Deploy Bicep Template (Prod)'
+                  inputs:
+                    azureSubscription: $(azureSubscription)
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      echo "Deploying to production environment..."
+                      
+                      az deployment sub create \
+                        --name "deploy-prod-$(Build.BuildNumber)" \
+                        --location "$(location)" \
+                        --template-file "$(Build.SourcesDirectory)/infra/main.bicep" \
+                        --parameters "$(Build.SourcesDirectory)/infra/parameters/prod.bicepparam" \
+                        --parameters location='$(location)' \
+                        --parameters postgresAdminPassword='$(POSTGRES_ADMIN_PASSWORD)' \
+                        --parameters nbaApiKey='$(NBA_API_KEY)' \
+                        --output json > "$(Build.ArtifactStagingDirectory)/deployment-prod.json"
+
+                - task: PublishPipelineArtifact@1
+                  displayName: 'Publish Deployment Outputs (Prod)'
+                  inputs:
+                    targetPath: '$(Build.ArtifactStagingDirectory)/deployment-prod.json'
+                    artifact: 'deployment-prod'
+                    publishLocation: 'pipeline'
+
+                - task: AzureCLI@2
+                  displayName: 'Initialize Database Schema (Prod)'
+                  inputs:
+                    azureSubscription: $(azureSubscription)
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      POSTGRES_FQDN=$(cat "$(Build.ArtifactStagingDirectory)/deployment-prod.json" | jq -r '.properties.outputs.postgresServerFqdn.value')
+                      
+                      bash "$(Build.SourcesDirectory)/infra/scripts/init-database.sh" \
+                        --server "$POSTGRES_FQDN" \
+                        --database "nba_stats" \
+                        --username "nbastatsadmin" \
+                        --password "$(POSTGRES_ADMIN_PASSWORD)"
+
+                - task: Bash@3
+                  displayName: 'Tag Deployment'
+                  inputs:
+                    targetType: 'inline'
+                    script: |
+                      git tag -a "infra-prod-$(Build.BuildNumber)" -m "Infrastructure deployment to production - $(Build.BuildNumber)"
+                      echo "##vso[task.setvariable variable=DEPLOYMENT_TAG]infra-prod-$(Build.BuildNumber)"
+
+                - task: Bash@3
+                  displayName: 'Deployment Summary'
+                  inputs:
+                    targetType: 'inline'
+                    script: |
+                      echo "=========================================="
+                      echo "  NBA Stats Infrastructure Deployment"
+                      echo "=========================================="
+                      echo "Environment: Production"
+                      echo "Build Number: $(Build.BuildNumber)"
+                      echo "Deployment Tag: $(DEPLOYMENT_TAG)"
+                      echo ""
+                      echo "Deployment outputs saved to pipeline artifacts"
+                      echo "=========================================="
