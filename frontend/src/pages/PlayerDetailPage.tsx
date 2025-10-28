@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { Player, PlayerStats } from '../types/nba';
 import { PlayerStatsGrid } from '../components/StatCard';
-import { apiClient, getErrorMessage, isApiError } from '../lib/apiClient';
+import { apiClient, getErrorMessage } from '../lib/apiClient';
 
 const PlayerDetailPage: React.FC = () => {
   const { playerId } = useParams<{ playerId: string }>();
@@ -21,18 +21,12 @@ const PlayerDetailPage: React.FC = () => {
         setLoading(true);
         setError(null);
 
-        const [playerResponse, statsResponse] = await Promise.all([
-          apiClient.getPlayer(playerId),
-          apiClient.getPlayerStats(playerId).catch((err) => {
-            if (isApiError(err) && err.status === 404) {
-              return null;
-            }
-            throw err;
-          })
-        ]);
-
+        // Fetch player data
+        const playerResponse = await apiClient.getPlayer(playerId);
         setPlayer(playerResponse);
-        setPlayerStats(statsResponse);
+        
+        // Stats not available on free plan
+        setPlayerStats(null);
       } catch (err) {
         setError(getErrorMessage(err));
         setPlayer(null);

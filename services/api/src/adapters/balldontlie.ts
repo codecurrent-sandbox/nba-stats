@@ -121,8 +121,8 @@ export class BallDontLieAdapter {
    */
   async getTeam(teamId: string): Promise<any> {
     try {
-      const response = await this.client.get<BallDontLieTeam>(`/teams/${teamId}`);
-      const team = response.data;
+      const response = await this.client.get<{data: BallDontLieTeam}>(`/teams/${teamId}`);
+      const team = response.data.data;
       
       return {
         id: team.id.toString(),
@@ -195,8 +195,8 @@ export class BallDontLieAdapter {
    */
   async getPlayer(playerId: string): Promise<any> {
     try {
-      const response = await this.client.get<BallDontLiePlayer>(`/players/${playerId}`);
-      const player = response.data;
+      const response = await this.client.get<{data: BallDontLiePlayer}>(`/players/${playerId}`);
+      const player = response.data.data;
 
       return {
         id: player.id.toString(),
@@ -287,8 +287,8 @@ export class BallDontLieAdapter {
    */
   async getGame(gameId: string): Promise<any> {
     try {
-      const response = await this.client.get<BallDontLieGame>(`/games/${gameId}`);
-      const game = response.data;
+      const response = await this.client.get<{data: BallDontLieGame}>(`/games/${gameId}`);
+      const game = response.data.data;
 
       return {
         id: game.id.toString(),

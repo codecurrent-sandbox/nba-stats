@@ -5,7 +5,9 @@ import HomePage from './pages/HomePage';
 import PlayersPage from './pages/PlayersPage';
 import PlayerDetailPage from './pages/PlayerDetailPage';
 import TeamsPage from './pages/TeamsPage';
+import TeamDetailPage from './pages/TeamDetailPage';
 import GamesPage from './pages/GamesPage';
+import GameDetailPage from './pages/GameDetailPage';
 import './App.css';
 
 function App() {
@@ -18,7 +20,9 @@ function App() {
           <Route path="/players" element={<PlayersPage />} />
           <Route path="/players/:playerId" element={<PlayerDetailPage />} />
           <Route path="/teams" element={<TeamsPage />} />
+          <Route path="/teams/:teamId" element={<TeamDetailPage />} />
           <Route path="/games" element={<GamesPage />} />
+          <Route path="/games/:gameId" element={<GameDetailPage />} />
         </Routes>
       </Layout>
     </div>
