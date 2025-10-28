@@ -97,7 +97,8 @@ resource rg 'Microsoft.Resources/resourceGroups@2024-03-01' = {
 var resourcePrefix = '${appName}-${environment}'
 var uniqueSuffix = uniqueString(rg.id)
 var containerRegistryName = replace('${resourcePrefix}acr${uniqueSuffix}', '-', '')
-var keyVaultName = '${resourcePrefix}-kv-${take(uniqueSuffix, 6)}'
+// Add timestamp to Key Vault name to avoid conflicts with soft-deleted vaults
+var keyVaultName = '${resourcePrefix}-kv-${take(uniqueSuffix, 5)}${take(uniqueString(utcNow()), 3)}'
 var logAnalyticsName = '${resourcePrefix}-logs'
 var appInsightsName = '${resourcePrefix}-ai'
 var managedIdentityName = '${resourcePrefix}-identity'
@@ -160,7 +161,6 @@ module keyVault 'modules/secrets/key-vault.bicep' = {
     privateEndpointSubnetId: enablePrivateEndpoints ? networking.outputs.privateEndpointsSubnetId : ''
     vnetId: networking.outputs.vnetId
     managedIdentityPrincipalId: identity.outputs.principalId
-    enablePurgeProtection: environment == 'prod' // Only enable in production
   }
 }
 

@@ -26,8 +26,9 @@ param managedIdentityPrincipalId string
 @allowed(['standard', 'premium'])
 param skuName string = 'standard'
 
-@description('Enable purge protection (should be true for production)')
-param enablePurgeProtection bool = false
+// Note: Purge protection cannot be disabled once enabled (Azure enforces this)
+// If you need to recreate the Key Vault, you must wait for soft-delete retention period (7 days)
+// or use a different name
 
 resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' = {
   name: keyVaultName
@@ -42,7 +43,7 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' = {
     enableRbacAuthorization: false
     enableSoftDelete: true
     softDeleteRetentionInDays: 7
-    enablePurgeProtection: enablePurgeProtection
+    enablePurgeProtection: true  // Required by Azure - cannot be disabled once enabled
     publicNetworkAccess: enablePrivateEndpoint ? 'Disabled' : 'Enabled'
     networkAcls: {
       bypass: 'AzureServices'
