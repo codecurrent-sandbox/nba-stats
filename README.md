@@ -12,18 +12,44 @@ A modern web application to display real-time NBA statistics with a React fronte
 
 ## Architecture
 
-```
-Frontend (React + Vite) → API Server (Node.js/Express) → PostgreSQL Database
-                                ↓
-                         BallDontLie API (only when data not in DB)
+```mermaid
+flowchart TB
+    subgraph Client["Client Layer"]
+        FE["Frontend<br/>(React + Vite + TypeScript)"]
+    end
+    
+    subgraph Server["Application Layer"]
+        API["API Server<br/>(Node.js + Express)"]
+        Cache["In-Memory Cache<br/>(5-minute TTL)"]
+    end
+    
+    subgraph Data["Data Layer"]
+        DB["PostgreSQL Database<br/>(Teams, Players, Games)"]
+        ExtAPI["BallDontLie API<br/>(External NBA Data)"]
+    end
+    
+    FE -->|HTTP Requests| API
+    API -->|Check Cache| Cache
+    Cache -.->|Cache Miss| DB
+    API -->|Query/Store| DB
+    DB -.->|Data Not Found| ExtAPI
+    API -->|Fetch & Store| ExtAPI
+    API -->|JSON Response| FE
+    
+    style FE fill:#61dafb,stroke:#333,stroke-width:2px,color:#000
+    style API fill:#68a063,stroke:#333,stroke-width:2px,color:#fff
+    style DB fill:#336791,stroke:#333,stroke-width:2px,color:#fff
+    style ExtAPI fill:#ff6b6b,stroke:#333,stroke-width:2px,color:#fff
+    style Cache fill:#ffd93d,stroke:#333,stroke-width:2px,color:#000
 ```
 
 **Data Flow:**
 1. Frontend requests data (e.g., teams)
-2. API checks PostgreSQL database
-3. If data exists in DB → return immediately (fast!)
-4. If data missing → fetch from BallDontLie API → store in DB → return to frontend
-5. Next request uses cached database data (no external API call!)
+2. API checks in-memory cache first
+3. If cache miss → check PostgreSQL database
+4. If data exists in DB → return immediately (fast!)
+5. If data missing → fetch from BallDontLie API → store in DB → return to frontend
+6. Subsequent requests use cached database data (no external API call!)
 
 ## Quick Start
 
