@@ -12,7 +12,7 @@ const GamesPage: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState('');
   const [filterTeam, setFilterTeam] = useState('');
 
-  const statuses = ['scheduled', 'in-progress', 'completed', 'cancelled'];
+  const statuses = ['Final', 'In Progress', 'Scheduled'];
 
   useEffect(() => {
     let cancelled = false;
@@ -87,7 +87,7 @@ const GamesPage: React.FC = () => {
               <option value="">All Games</option>
               {statuses.map(status => (
                 <option key={status} value={status}>
-                  {status.charAt(0).toUpperCase() + status.slice(1).replace('-', ' ')}
+                  {status}
                 </option>
               ))}
             </select>

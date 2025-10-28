@@ -12,7 +12,7 @@ const PlayersPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPosition, setFilterPosition] = useState('');
 
-  const positions = ['PG', 'SG', 'SF', 'PF', 'C'];
+  const positions = ['C', 'F', 'G', 'C-F', 'G-F'];
 
   useEffect(() => {
     let cancelled = false;
