@@ -5,6 +5,7 @@ import { ballDontLieAdapter } from './src/adapters/balldontlie.js';
 import { InMemoryCache } from './src/cache/InMemoryCache.js';
 import { initializeDatabase } from './src/database/init.js';
 import { repository } from './src/database/repository.js';
+import { getTeamLogoUrl } from './src/utils/teamLogos.js';
 
 dotenv.config();
 
@@ -182,7 +183,8 @@ app.get('/api/v1/teams', async (req, res, next) => {
         abbreviation: t.abbreviation,
         city: t.city,
         conference: t.conference,
-        division: t.division
+        division: t.division,
+        logoUrl: t.logo_url || getTeamLogoUrl(t.abbreviation)
       }));
       
       return res.json({
@@ -203,7 +205,8 @@ app.get('/api/v1/teams', async (req, res, next) => {
       abbreviation: t.abbreviation,
       city: t.city,
       conference: t.conference,
-      division: t.division
+      division: t.division,
+      logo_url: getTeamLogoUrl(t.abbreviation)
     }));
     
     await repository.upsertTeams(teamsToStore);
@@ -235,7 +238,8 @@ app.get('/api/v1/teams/:id', async (req, res, next) => {
         abbreviation: dbTeam.abbreviation,
         city: dbTeam.city,
         conference: dbTeam.conference,
-        division: dbTeam.division
+        division: dbTeam.division,
+        logoUrl: dbTeam.logo_url || getTeamLogoUrl(dbTeam.abbreviation)
       };
       return res.json({ data: team });
     }
@@ -252,7 +256,8 @@ app.get('/api/v1/teams/:id', async (req, res, next) => {
       abbreviation: team.abbreviation,
       city: team.city,
       conference: team.conference,
-      division: team.division
+      division: team.division,
+      logo_url: getTeamLogoUrl(team.abbreviation)
     });
 
     res.json({ data: team });
@@ -288,13 +293,15 @@ app.get('/api/v1/games', async (req, res, next) => {
             id: homeTeam.id.toString(),
             name: homeTeam.name,
             abbreviation: homeTeam.abbreviation,
-            city: homeTeam.city
+            city: homeTeam.city,
+            logoUrl: homeTeam.logo_url || getTeamLogoUrl(homeTeam.abbreviation)
           } : null,
           awayTeam: awayTeam ? {
             id: awayTeam.id.toString(),
             name: awayTeam.name,
             abbreviation: awayTeam.abbreviation,
-            city: awayTeam.city
+            city: awayTeam.city,
+            logoUrl: awayTeam.logo_url || getTeamLogoUrl(awayTeam.abbreviation)
           } : null,
           homeScore: g.home_team_score,
           awayScore: g.visitor_team_score
@@ -327,7 +334,8 @@ app.get('/api/v1/games', async (req, res, next) => {
           abbreviation: game.homeTeam.abbreviation,
           city: game.homeTeam.city,
           conference: game.homeTeam.conference,
-          division: game.homeTeam.division
+          division: game.homeTeam.division,
+          logo_url: getTeamLogoUrl(game.homeTeam.abbreviation)
         });
       }
       if (game.awayTeam) {
@@ -337,7 +345,8 @@ app.get('/api/v1/games', async (req, res, next) => {
           abbreviation: game.awayTeam.abbreviation,
           city: game.awayTeam.city,
           conference: game.awayTeam.conference,
-          division: game.awayTeam.division
+          division: game.awayTeam.division,
+          logo_url: getTeamLogoUrl(game.awayTeam.abbreviation)
         });
       }
       
@@ -396,13 +405,15 @@ app.get('/api/v1/games/:id', async (req, res, next) => {
           id: homeTeam.id.toString(),
           name: homeTeam.name,
           abbreviation: homeTeam.abbreviation,
-          city: homeTeam.city
+          city: homeTeam.city,
+          logoUrl: homeTeam.logo_url || getTeamLogoUrl(homeTeam.abbreviation)
         } : null,
         awayTeam: awayTeam ? {
           id: awayTeam.id.toString(),
           name: awayTeam.name,
           abbreviation: awayTeam.abbreviation,
-          city: awayTeam.city
+          city: awayTeam.city,
+          logoUrl: awayTeam.logo_url || getTeamLogoUrl(awayTeam.abbreviation)
         } : null,
         homeScore: dbGame.home_team_score,
         awayScore: dbGame.visitor_team_score
@@ -423,7 +434,8 @@ app.get('/api/v1/games/:id', async (req, res, next) => {
         abbreviation: game.homeTeam.abbreviation,
         city: game.homeTeam.city,
         conference: game.homeTeam.conference,
-        division: game.homeTeam.division
+        division: game.homeTeam.division,
+        logo_url: getTeamLogoUrl(game.homeTeam.abbreviation)
       });
     }
     if (game.awayTeam) {
@@ -433,7 +445,8 @@ app.get('/api/v1/games/:id', async (req, res, next) => {
         abbreviation: game.awayTeam.abbreviation,
         city: game.awayTeam.city,
         conference: game.awayTeam.conference,
-        division: game.awayTeam.division
+        division: game.awayTeam.division,
+        logo_url: getTeamLogoUrl(game.awayTeam.abbreviation)
       });
     }
     

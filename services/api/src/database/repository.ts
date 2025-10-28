@@ -8,6 +8,7 @@ export interface Team {
   city: string;
   conference?: string;
   division?: string;
+  logo_url?: string;
 }
 
 export interface Player {
@@ -54,8 +55,8 @@ class Repository {
 
   async upsertTeam(team: Team): Promise<Team> {
     const result = await query(
-      `INSERT INTO teams (id, name, full_name, abbreviation, city, conference, division)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO teams (id, name, full_name, abbreviation, city, conference, division, logo_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        ON CONFLICT (id) DO UPDATE SET
          name = EXCLUDED.name,
          full_name = EXCLUDED.full_name,
@@ -63,9 +64,10 @@ class Repository {
          city = EXCLUDED.city,
          conference = EXCLUDED.conference,
          division = EXCLUDED.division,
+         logo_url = EXCLUDED.logo_url,
          updated_at = CURRENT_TIMESTAMP
        RETURNING *`,
-      [team.id, team.name, team.full_name, team.abbreviation, team.city, team.conference, team.division]
+      [team.id, team.name, team.full_name, team.abbreviation, team.city, team.conference, team.division, team.logo_url]
     );
     return result.rows[0];
   }

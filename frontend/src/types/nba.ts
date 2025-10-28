@@ -21,6 +21,8 @@ export interface Team {
   founded?: number;
   conference?: 'Eastern' | 'Western';
   division?: string;
+  fullName?: string;
+  logoUrl?: string;
 }
 
 export interface Game {

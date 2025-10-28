@@ -67,6 +67,18 @@ const GameCard: React.FC<GameCardProps> = ({
       <div className="flex items-center justify-between">
         {/* Away Team */}
         <div className={`flex-1 text-center ${winner === 'away' ? 'font-semibold' : ''}`}>
+          {game.awayTeam.logoUrl && (
+            <div className="flex justify-center mb-2">
+              <img 
+                src={game.awayTeam.logoUrl} 
+                alt={`${game.awayTeam.city} ${game.awayTeam.name} logo`}
+                className="w-12 h-12 object-contain"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            </div>
+          )}
           <div className="text-sm font-medium text-gray-900">
             {game.awayTeam.city}
           </div>
@@ -89,6 +101,18 @@ const GameCard: React.FC<GameCardProps> = ({
         
         {/* Home Team */}
         <div className={`flex-1 text-center ${winner === 'home' ? 'font-semibold' : ''}`}>
+          {game.homeTeam.logoUrl && (
+            <div className="flex justify-center mb-2">
+              <img 
+                src={game.homeTeam.logoUrl} 
+                alt={`${game.homeTeam.city} ${game.homeTeam.name} logo`}
+                className="w-12 h-12 object-contain"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            </div>
+          )}
           <div className="text-sm font-medium text-gray-900">
             {game.homeTeam.city}
           </div>

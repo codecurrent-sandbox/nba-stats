@@ -76,7 +76,19 @@ const TeamDetailPage: React.FC = () => {
         </Link>
         
         <div className="bg-white rounded-lg shadow-lg p-8">
-          <div className="flex flex-col md:flex-row md:items-start md:justify-between">
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
+            {team.logoUrl && (
+              <div className="flex-shrink-0">
+                <img 
+                  src={team.logoUrl} 
+                  alt={`${team.city} ${team.name} logo`}
+                  className="w-32 h-32 object-contain"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+              </div>
+            )}
             <div className="flex-1">
               <h1 className="text-4xl font-bold text-gray-900 mb-2">
                 {team.city} {team.name}

@@ -33,7 +33,20 @@ const TeamCard: React.FC<TeamCardProps> = ({
       className={`team-card bg-white rounded-lg shadow-md p-4 hover:shadow-lg transition-shadow cursor-pointer ${className}`}
       onClick={handleClick}
     >
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-4">
+        {team.logoUrl && (
+          <div className="flex-shrink-0">
+            <img 
+              src={team.logoUrl} 
+              alt={`${team.city} ${team.name} logo`}
+              className="w-16 h-16 object-contain"
+              onError={(e) => {
+                // Hide image if it fails to load
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+          </div>
+        )}
         <div className="flex-1">
           <h3 className="text-lg font-semibold text-gray-900">
             {team.city} {team.name}

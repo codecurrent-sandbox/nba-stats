@@ -112,6 +112,18 @@ const GameDetailPage: React.FC = () => {
                 className="block hover:bg-gray-50 rounded-lg p-4 transition-colors"
               >
                 <div className="text-sm text-gray-500 mb-2">Away</div>
+                {game.awayTeam.logoUrl && (
+                  <div className="flex justify-center mb-4">
+                    <img 
+                      src={game.awayTeam.logoUrl} 
+                      alt={`${game.awayTeam.city} ${game.awayTeam.name} logo`}
+                      className="w-24 h-24 object-contain"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  </div>
+                )}
                 <div className="text-2xl font-bold text-gray-900 mb-1">
                   {game.awayTeam.city} {game.awayTeam.name}
                 </div>
@@ -136,6 +148,18 @@ const GameDetailPage: React.FC = () => {
                 className="block hover:bg-gray-50 rounded-lg p-4 transition-colors"
               >
                 <div className="text-sm text-gray-500 mb-2">Home</div>
+                {game.homeTeam.logoUrl && (
+                  <div className="flex justify-center mb-4">
+                    <img 
+                      src={game.homeTeam.logoUrl} 
+                      alt={`${game.homeTeam.city} ${game.homeTeam.name} logo`}
+                      className="w-24 h-24 object-contain"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  </div>
+                )}
                 <div className="text-2xl font-bold text-gray-900 mb-1">
                   {game.homeTeam.city} {game.homeTeam.name}
                 </div>
