@@ -3,11 +3,16 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { ballDontLieAdapter } from './src/adapters/balldontlie.js';
 import { InMemoryCache } from './src/cache/InMemoryCache.js';
+import { initializeDatabase } from './src/database/init.js';
+import { repository } from './src/database/repository.js';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Initialize database
+await initializeDatabase();
 
 // Initialize cache
 const cache = new InMemoryCache(300000); // 5 minutes TTL
@@ -30,20 +35,71 @@ app.get('/api/health', (req, res) => {
 // Players endpoints
 app.get('/api/v1/players', async (req, res, next) => {
   try {
-    const cacheKey = `players:${req.query.search || 'all'}:${req.query.cursor || 0}`;
+    const limit = req.query.limit ? parseInt(req.query.limit) : 50;
     
-    // Check cache first
-    let cachedData = cache.get(cacheKey);
-    if (cachedData) {
+    // Try to get from database first
+    const dbPlayers = await repository.getAllPlayers(limit);
+    
+    // If we have data in DB, use it (with in-memory cache)
+    if (dbPlayers && dbPlayers.length > 0) {
+      const cacheKey = `players:db:${limit}`;
+      let cachedData = cache.get(cacheKey);
+      
+      if (!cachedData) {
+        // Transform DB format to API format
+        const players = dbPlayers.map(p => ({
+          id: p.id.toString(),
+          firstName: p.first_name,
+          lastName: p.last_name,
+          position: p.position || 'N/A',
+          height: p.height,
+          weight: p.weight,
+          jerseyNumber: p.jersey_number,
+          college: p.college,
+          country: p.country,
+          draftYear: p.draft_year,
+          draftRound: p.draft_round,
+          draftNumber: p.draft_number,
+          teamId: p.team_id ? p.team_id.toString() : null
+        }));
+        
+        cachedData = {
+          data: players,
+          meta: { per_page: limit, total: players.length }
+        };
+        cache.set(cacheKey, cachedData);
+      }
+      
       return res.json(cachedData);
     }
 
-    // Fetch from external API
+    // If no data in DB, fetch from external API and store
+    console.log('📡 Fetching players from external API...');
     const result = await ballDontLieAdapter.getPlayers({
       cursor: req.query.cursor ? parseInt(req.query.cursor) : undefined,
-      per_page: req.query.limit ? parseInt(req.query.limit) : 25,
+      per_page: limit,
       search: req.query.search
     });
+
+    // Store in database
+    const playersToStore = result.data.map(p => ({
+      id: parseInt(p.id),
+      first_name: p.firstName,
+      last_name: p.lastName,
+      position: p.position,
+      height: p.height,
+      weight: p.weight,
+      jersey_number: p.jerseyNumber,
+      college: p.college,
+      country: p.country,
+      draft_year: p.draftYear,
+      draft_round: p.draftRound,
+      draft_number: p.draftNumber,
+      team_id: p.teamId ? parseInt(p.teamId) : null
+    }));
+    
+    await repository.upsertPlayers(playersToStore);
+    console.log(`✓ Stored ${playersToStore.length} players in database`);
 
     const response = {
       data: result.data,
@@ -53,9 +109,6 @@ app.get('/api/v1/players', async (req, res, next) => {
       }
     };
 
-    // Cache the response
-    cache.set(cacheKey, response);
-
     res.json(response);
   } catch (error) {
     next(error);
@@ -64,20 +117,50 @@ app.get('/api/v1/players', async (req, res, next) => {
 
 app.get('/api/v1/players/:id', async (req, res, next) => {
   try {
-    const playerId = req.params.id;
-    const cacheKey = `player:${playerId}`;
+    const playerId = parseInt(req.params.id);
     
-    // Check cache first
-    let cachedData = cache.get(cacheKey);
-    if (cachedData) {
-      return res.json({ data: cachedData });
+    // Try database first
+    const dbPlayer = await repository.getPlayerById(playerId);
+    
+    if (dbPlayer) {
+      const player = {
+        id: dbPlayer.id.toString(),
+        firstName: dbPlayer.first_name,
+        lastName: dbPlayer.last_name,
+        position: dbPlayer.position || 'N/A',
+        height: dbPlayer.height,
+        weight: dbPlayer.weight,
+        jerseyNumber: dbPlayer.jersey_number,
+        college: dbPlayer.college,
+        country: dbPlayer.country,
+        draftYear: dbPlayer.draft_year,
+        draftRound: dbPlayer.draft_round,
+        draftNumber: dbPlayer.draft_number,
+        teamId: dbPlayer.team_id ? dbPlayer.team_id.toString() : null
+      };
+      return res.json({ data: player });
     }
 
-    // Fetch from external API
-    const player = await ballDontLieAdapter.getPlayer(playerId);
+    // Fetch from external API if not in DB
+    console.log(`📡 Fetching player ${playerId} from external API...`);
+    const player = await ballDontLieAdapter.getPlayer(req.params.id);
 
-    // Cache the response
-    cache.set(cacheKey, player);
+    // Store in database
+    await repository.upsertPlayer({
+      id: parseInt(player.id),
+      first_name: player.firstName,
+      last_name: player.lastName,
+      position: player.position,
+      height: player.height,
+      weight: player.weight,
+      jersey_number: player.jerseyNumber,
+      college: player.college,
+      country: player.country,
+      draft_year: player.draftYear,
+      draft_round: player.draftRound,
+      draft_number: player.draftNumber,
+      team_id: player.teamId ? parseInt(player.teamId) : null
+    });
 
     res.json({ data: player });
   } catch (error) {
@@ -88,26 +171,48 @@ app.get('/api/v1/players/:id', async (req, res, next) => {
 // Teams endpoints
 app.get('/api/v1/teams', async (req, res, next) => {
   try {
-    const cacheKey = 'teams:all';
+    // Try database first
+    const dbTeams = await repository.getAllTeams();
     
-    // Check cache first
-    let cachedData = cache.get(cacheKey);
-    if (cachedData) {
-      return res.json(cachedData);
+    if (dbTeams && dbTeams.length > 0) {
+      const teams = dbTeams.map(t => ({
+        id: t.id.toString(),
+        name: t.name,
+        fullName: t.full_name,
+        abbreviation: t.abbreviation,
+        city: t.city,
+        conference: t.conference,
+        division: t.division
+      }));
+      
+      return res.json({
+        data: teams,
+        meta: { total: teams.length }
+      });
     }
 
-    // Fetch from external API
+    // Fetch from external API if not in DB
+    console.log('📡 Fetching teams from external API...');
     const teams = await ballDontLieAdapter.getTeams();
+
+    // Store in database
+    const teamsToStore = teams.map(t => ({
+      id: parseInt(t.id),
+      name: t.name,
+      full_name: t.fullName,
+      abbreviation: t.abbreviation,
+      city: t.city,
+      conference: t.conference,
+      division: t.division
+    }));
+    
+    await repository.upsertTeams(teamsToStore);
+    console.log(`✓ Stored ${teamsToStore.length} teams in database`);
 
     const response = {
       data: teams,
-      meta: {
-        total: teams.length
-      }
+      meta: { total: teams.length }
     };
-
-    // Cache the response
-    cache.set(cacheKey, response);
 
     res.json(response);
   } catch (error) {
@@ -117,20 +222,38 @@ app.get('/api/v1/teams', async (req, res, next) => {
 
 app.get('/api/v1/teams/:id', async (req, res, next) => {
   try {
-    const teamId = req.params.id;
-    const cacheKey = `team:${teamId}`;
+    const teamId = parseInt(req.params.id);
     
-    // Check cache first
-    let cachedData = cache.get(cacheKey);
-    if (cachedData) {
-      return res.json({ data: cachedData });
+    // Try database first
+    const dbTeam = await repository.getTeamById(teamId);
+    
+    if (dbTeam) {
+      const team = {
+        id: dbTeam.id.toString(),
+        name: dbTeam.name,
+        fullName: dbTeam.full_name,
+        abbreviation: dbTeam.abbreviation,
+        city: dbTeam.city,
+        conference: dbTeam.conference,
+        division: dbTeam.division
+      };
+      return res.json({ data: team });
     }
 
-    // Fetch from external API
-    const team = await ballDontLieAdapter.getTeam(teamId);
+    // Fetch from external API if not in DB
+    console.log(`📡 Fetching team ${teamId} from external API...`);
+    const team = await ballDontLieAdapter.getTeam(req.params.id);
 
-    // Cache the response
-    cache.set(cacheKey, team);
+    // Store in database
+    await repository.upsertTeam({
+      id: parseInt(team.id),
+      name: team.name,
+      full_name: team.fullName,
+      abbreviation: team.abbreviation,
+      city: team.city,
+      conference: team.conference,
+      division: team.division
+    });
 
     res.json({ data: team });
   } catch (error) {
@@ -141,26 +264,99 @@ app.get('/api/v1/teams/:id', async (req, res, next) => {
 // Games endpoints
 app.get('/api/v1/games', async (req, res, next) => {
   try {
-    const dates = req.query.dates ? [req.query.dates] : undefined;
-    const seasons = req.query.seasons ? [parseInt(req.query.seasons)] : [new Date().getFullYear()];
-    const team_ids = req.query.team_ids ? [parseInt(req.query.team_ids)] : undefined;
+    const limit = req.query.limit ? parseInt(req.query.limit) : 50;
+    const season = req.query.seasons ? parseInt(req.query.seasons) : new Date().getFullYear();
     
-    const cacheKey = `games:${dates || 'all'}:${seasons}:${team_ids || 'all'}:${req.query.cursor || 0}`;
+    // Try database first
+    const dbGames = await repository.getAllGames(limit, season);
     
-    // Check cache first
-    let cachedData = cache.get(cacheKey);
-    if (cachedData) {
-      return res.json(cachedData);
+    if (dbGames && dbGames.length > 0) {
+      // Get team info for each game
+      const gamesWithTeams = await Promise.all(dbGames.map(async (g) => {
+        const homeTeam = await repository.getTeamById(g.home_team_id);
+        const awayTeam = await repository.getTeamById(g.visitor_team_id);
+        
+        return {
+          id: g.id.toString(),
+          date: g.date,
+          season: g.season,
+          status: g.status,
+          period: g.period,
+          time: g.time,
+          postseason: g.postseason,
+          homeTeam: homeTeam ? {
+            id: homeTeam.id.toString(),
+            name: homeTeam.name,
+            abbreviation: homeTeam.abbreviation,
+            city: homeTeam.city
+          } : null,
+          awayTeam: awayTeam ? {
+            id: awayTeam.id.toString(),
+            name: awayTeam.name,
+            abbreviation: awayTeam.abbreviation,
+            city: awayTeam.city
+          } : null,
+          homeScore: g.home_team_score,
+          awayScore: g.visitor_team_score
+        };
+      }));
+      
+      return res.json({
+        data: gamesWithTeams,
+        meta: { per_page: limit, total: gamesWithTeams.length }
+      });
     }
 
-    // Fetch from external API
+    // Fetch from external API if not in DB
+    console.log('📡 Fetching games from external API...');
     const result = await ballDontLieAdapter.getGames({
-      dates,
-      seasons,
-      team_ids,
+      dates: req.query.dates ? [req.query.dates] : undefined,
+      seasons: [season],
+      team_ids: req.query.team_ids ? [parseInt(req.query.team_ids)] : undefined,
       cursor: req.query.cursor ? parseInt(req.query.cursor) : undefined,
-      per_page: req.query.limit ? parseInt(req.query.limit) : 25
+      per_page: limit
     });
+
+    // Store games and teams in database
+    for (const game of result.data) {
+      // Store teams first
+      if (game.homeTeam) {
+        await repository.upsertTeam({
+          id: parseInt(game.homeTeam.id),
+          name: game.homeTeam.name,
+          abbreviation: game.homeTeam.abbreviation,
+          city: game.homeTeam.city,
+          conference: game.homeTeam.conference,
+          division: game.homeTeam.division
+        });
+      }
+      if (game.awayTeam) {
+        await repository.upsertTeam({
+          id: parseInt(game.awayTeam.id),
+          name: game.awayTeam.name,
+          abbreviation: game.awayTeam.abbreviation,
+          city: game.awayTeam.city,
+          conference: game.awayTeam.conference,
+          division: game.awayTeam.division
+        });
+      }
+      
+      // Store game
+      await repository.upsertGame({
+        id: parseInt(game.id),
+        date: game.date,
+        season: game.season,
+        status: game.status,
+        period: game.period,
+        time: game.time,
+        postseason: game.postseason,
+        home_team_id: parseInt(game.homeTeam.id),
+        visitor_team_id: parseInt(game.awayTeam.id),
+        home_team_score: game.homeScore,
+        visitor_team_score: game.awayScore
+      });
+    }
+    console.log(`✓ Stored ${result.data.length} games in database`);
 
     const response = {
       data: result.data,
@@ -170,9 +366,6 @@ app.get('/api/v1/games', async (req, res, next) => {
       }
     };
 
-    // Cache the response
-    cache.set(cacheKey, response);
-
     res.json(response);
   } catch (error) {
     next(error);
@@ -181,20 +374,82 @@ app.get('/api/v1/games', async (req, res, next) => {
 
 app.get('/api/v1/games/:id', async (req, res, next) => {
   try {
-    const gameId = req.params.id;
-    const cacheKey = `game:${gameId}`;
+    const gameId = parseInt(req.params.id);
     
-    // Check cache first
-    let cachedData = cache.get(cacheKey);
-    if (cachedData) {
-      return res.json({ data: cachedData });
+    // Try database first
+    const dbGame = await repository.getGameById(gameId);
+    
+    if (dbGame) {
+      // Get team info
+      const homeTeam = await repository.getTeamById(dbGame.home_team_id);
+      const awayTeam = await repository.getTeamById(dbGame.visitor_team_id);
+      
+      const game = {
+        id: dbGame.id.toString(),
+        date: dbGame.date,
+        season: dbGame.season,
+        status: dbGame.status,
+        period: dbGame.period,
+        time: dbGame.time,
+        postseason: dbGame.postseason,
+        homeTeam: homeTeam ? {
+          id: homeTeam.id.toString(),
+          name: homeTeam.name,
+          abbreviation: homeTeam.abbreviation,
+          city: homeTeam.city
+        } : null,
+        awayTeam: awayTeam ? {
+          id: awayTeam.id.toString(),
+          name: awayTeam.name,
+          abbreviation: awayTeam.abbreviation,
+          city: awayTeam.city
+        } : null,
+        homeScore: dbGame.home_team_score,
+        awayScore: dbGame.visitor_team_score
+      };
+      
+      return res.json({ data: game });
     }
 
-    // Fetch from external API
-    const game = await ballDontLieAdapter.getGame(gameId);
+    // Fetch from external API if not in DB
+    console.log(`📡 Fetching game ${gameId} from external API...`);
+    const game = await ballDontLieAdapter.getGame(req.params.id);
 
-    // Cache the response
-    cache.set(cacheKey, game);
+    // Store teams and game in database
+    if (game.homeTeam) {
+      await repository.upsertTeam({
+        id: parseInt(game.homeTeam.id),
+        name: game.homeTeam.name,
+        abbreviation: game.homeTeam.abbreviation,
+        city: game.homeTeam.city,
+        conference: game.homeTeam.conference,
+        division: game.homeTeam.division
+      });
+    }
+    if (game.awayTeam) {
+      await repository.upsertTeam({
+        id: parseInt(game.awayTeam.id),
+        name: game.awayTeam.name,
+        abbreviation: game.awayTeam.abbreviation,
+        city: game.awayTeam.city,
+        conference: game.awayTeam.conference,
+        division: game.awayTeam.division
+      });
+    }
+    
+    await repository.upsertGame({
+      id: parseInt(game.id),
+      date: game.date,
+      season: game.season,
+      status: game.status,
+      period: game.period,
+      time: game.time,
+      postseason: game.postseason,
+      home_team_id: parseInt(game.homeTeam.id),
+      visitor_team_id: parseInt(game.awayTeam.id),
+      home_team_score: game.homeScore,
+      visitor_team_score: game.awayScore
+    });
 
     res.json({ data: game });
   } catch (error) {

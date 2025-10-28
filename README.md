@@ -1,6 +1,29 @@
 # NBA Stats
 
-A modern web application to display real-time NBA statistics with a React frontend and Node.js API backend.
+A modern web application to display real-time NBA statistics with a React frontend, Node.js API backend, and PostgreSQL database for caching.
+
+## Features
+
+✅ **Database-First Architecture** - PostgreSQL caches all API responses, dramatically reducing external API calls  
+✅ **Rate Limit Protection** - Database caching prevents hitting BallDontLie's 5 requests/minute limit  
+✅ **Fast Performance** - Data served from local database is much faster than external API calls  
+✅ **Automatic Data Sync** - First request fetches from BallDontLie and stores in DB, subsequent requests use cached data  
+✅ **Real NBA Data** - Teams, Players, Games from the official BallDontLie API  
+
+## Architecture
+
+```
+Frontend (React + Vite) → API Server (Node.js/Express) → PostgreSQL Database
+                                ↓
+                         BallDontLie API (only when data not in DB)
+```
+
+**Data Flow:**
+1. Frontend requests data (e.g., teams)
+2. API checks PostgreSQL database
+3. If data exists in DB → return immediately (fast!)
+4. If data missing → fetch from BallDontLie API → store in DB → return to frontend
+5. Next request uses cached database data (no external API call!)
 
 ## Quick Start
 
