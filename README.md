@@ -260,9 +260,71 @@ cd infra && ./scripts/deploy.sh dev
 - **Pros**: Full control, educational
 - **Cons**: Manual process, no automation
 
-## Infrastructure Architecture
+## Azure Architecture
 
 The application uses **subscription-level Bicep deployment** to manage the complete infrastructure lifecycle, including resource groups. Default deployment location is **Sweden Central** (can be changed in parameter files).
+
+```mermaid
+graph TB
+    subgraph Internet["🌐 Internet"]
+        Users["👥 Users"]
+    end
+
+    subgraph Azure["☁️ Azure Subscription"]
+        subgraph RG["📦 Resource Group"]
+            subgraph VNet["🔒 Virtual Network"]
+                subgraph ContainerSubnet["Container Apps Subnet"]
+                    CAEnv["🐳 Container Apps Environment"]
+                    Frontend["⚛️ Frontend App<br/>(React)"]
+                    API["🔧 API App<br/>(Node.js)"]
+                end
+                
+                subgraph DBSubnet["Database Subnet"]
+                    PostgreSQL["🗄️ PostgreSQL<br/>Flexible Server"]
+                end
+                
+                subgraph PrivateSubnet["Private Endpoints Subnet"]
+                    KVPE["🔐 Key Vault PE"]
+                end
+            end
+            
+            ACR["📦 Container Registry"]
+            KV["🔑 Key Vault"]
+            LogWS["📊 Log Analytics"]
+            AppInsights["📈 App Insights"]
+            Identity["🎫 Managed Identity"]
+        end
+    end
+    
+    subgraph External["🌍 External Services"]
+        BallDontLie["🏀 BallDontLie API"]
+    end
+
+    Users -->|HTTPS| Frontend
+    Frontend -->|API Calls| API
+    API -->|Query/Store| PostgreSQL
+    API -->|Fetch NBA Data| BallDontLie
+    API -->|Get Secrets| KV
+    Frontend -.->|Logs| LogWS
+    API -.->|Logs| LogWS
+    API -.->|Telemetry| AppInsights
+    Frontend -.->|Telemetry| AppInsights
+    CAEnv -->|Pull Images| ACR
+    API -->|Uses| Identity
+    Identity -->|Access| KV
+
+    style Users fill:#61dafb,stroke:#333,stroke-width:2px
+    style Frontend fill:#61dafb,stroke:#333,stroke-width:2px
+    style API fill:#68a063,stroke:#333,stroke-width:2px
+    style PostgreSQL fill:#336791,stroke:#333,stroke-width:2px
+    style KV fill:#ffd93d,stroke:#333,stroke-width:2px
+    style ACR fill:#0078d4,stroke:#333,stroke-width:2px
+    style CAEnv fill:#00bcf2,stroke:#333,stroke-width:2px
+    style BallDontLie fill:#ff6b6b,stroke:#333,stroke-width:2px
+    style LogWS fill:#00a2ed,stroke:#333,stroke-width:2px
+    style AppInsights fill:#773fbd,stroke:#333,stroke-width:2px
+    style Identity fill:#50e6ff,stroke:#333,stroke-width:2px
+```
 
 ### Azure Resources Created
 
