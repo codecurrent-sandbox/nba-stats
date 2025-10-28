@@ -3,7 +3,7 @@ FROM node:20-alpine AS builder
 
 WORKDIR /build
 COPY package*.json ./
-RUN npm install --omit=dev && npm cache clean --force
+RUN npm install && npm cache clean --force
 
 FROM node:20-alpine
 
@@ -31,4 +31,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 EXPOSE 3000
 
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["node", "server.js"]
+CMD ["npm", "start"]

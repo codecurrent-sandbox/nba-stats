@@ -1,6 +1,10 @@
 # Multi-stage build for React frontend
 FROM node:20-alpine AS builder
 
+# Accept build argument for API URL
+ARG VITE_API_URL=http://localhost:3000/api
+ENV VITE_API_URL=$VITE_API_URL
+
 WORKDIR /build
 COPY package*.json ./
 RUN npm ci

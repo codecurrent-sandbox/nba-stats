@@ -146,8 +146,21 @@ class ApiClient {
       payload &&
       typeof payload === 'object' &&
       'data' in payload &&
-      (payload as ApiResponse<U>).data !== undefined
+      (payload as any).data !== undefined
     ) {
+      // If this is a paginated response from the API with {data: [...], meta: {...}}
+      // transform it to match our PaginatedResponse format {items: [...], total: ...}
+      if (Array.isArray((payload as any).data) && 'meta' in payload) {
+        const meta = (payload as any).meta;
+        return {
+          items: (payload as any).data,
+          total: meta.total || (payload as any).data.length,
+          limit: meta.per_page,
+          offset: meta.cursor || 0,
+          hasNext: meta.next_cursor !== undefined && meta.next_cursor !== null,
+        } as U;
+      }
+      
       return (payload as ApiResponse<U>).data;
     }
 
