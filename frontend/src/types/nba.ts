@@ -19,7 +19,7 @@ export interface Team {
   abbreviation: string;
   city: string;
   founded?: number;
-  conference?: 'Eastern' | 'Western';
+  conference?: 'East' | 'West';
   division?: string;
   fullName?: string;
   logoUrl?: string;

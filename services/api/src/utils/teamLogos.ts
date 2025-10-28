@@ -33,6 +33,7 @@ export function getTeamLogoUrl(abbreviation: string): string {
     'SAS': 'sa',     // San Antonio Spurs uses 'sa' not 'sas'
     'TOR': 'tor',
     'UTA': 'utah',   // Utah Jazz uses 'utah' not 'uta'
+    'WAS': 'was',    // Washington Wizards
     'WSH': 'wsh',
   };
 

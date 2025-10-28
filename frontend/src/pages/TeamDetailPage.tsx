@@ -62,8 +62,8 @@ const TeamDetailPage: React.FC = () => {
 
   const getConferenceColor = (conference?: string) => {
     switch (conference) {
-      case 'Eastern': return 'bg-blue-100 text-blue-800';
-      case 'Western': return 'bg-red-100 text-red-800';
+      case 'East': return 'bg-blue-100 text-blue-800';
+      case 'West': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };

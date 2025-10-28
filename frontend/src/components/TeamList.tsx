@@ -22,6 +22,10 @@ const TeamList: React.FC<TeamListProps> = ({
   className = ''
 }) => {
   const filteredTeams = teams.filter(team => {
+    // Only show teams with valid conferences (East or West)
+    const hasValidConference = team.conference === 'East' || team.conference === 'West';
+    if (!hasValidConference) return false;
+    
     const matchesSearch = searchTerm === '' || 
       `${team.city} ${team.name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
       team.abbreviation.toLowerCase().includes(searchTerm.toLowerCase());

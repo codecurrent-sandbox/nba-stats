@@ -12,7 +12,7 @@ const TeamsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterConference, setFilterConference] = useState('');
 
-  const conferences = ['Eastern', 'Western'];
+  const conferences = ['East', 'West'];
 
   useEffect(() => {
     let cancelled = false;
