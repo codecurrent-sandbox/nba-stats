@@ -120,16 +120,6 @@ stages:
                 - checkout: self
 
                 - task: AzureCLI@2
-                  displayName: 'Seed Secrets to Key Vault (Dev)'
-                  inputs:
-                    azureSubscription: $(azureSubscription)
-                    scriptType: 'bash'
-                    scriptLocation: 'scriptPath'
-                    scriptPath: '$(Build.SourcesDirectory)/infra/scripts/seed-secrets.sh'
-                    arguments: '--key-vault nba-stats-dev-kv-$(KV_SUFFIX) --api-key $(NBA_API_KEY)'
-                  continueOnError: true # Key Vault might not exist yet on first run
-
-                - task: AzureCLI@2
                   displayName: 'Deploy Bicep Template (Dev)'
                   inputs:
                     azureSubscription: $(azureSubscription)
@@ -146,9 +136,10 @@ stages:
                         --parameters location='$(location)' \
                         --parameters postgresAdminPassword='$(POSTGRES_ADMIN_PASSWORD)' \
                         --parameters nbaApiKey='$(NBA_API_KEY)' \
+                        --query '{keyVaultName:properties.outputs.keyVaultName.value,postgresServerFqdn:properties.outputs.postgresServerFqdn.value,resourceGroupName:properties.outputs.resourceGroupName.value}' \
                         --output json > "$(Build.ArtifactStagingDirectory)/deployment-dev.json"
                       
-                      echo "Deployment complete"
+                      echo "Deployment complete. Outputs:"
                       cat "$(Build.ArtifactStagingDirectory)/deployment-dev.json"
 
                 - task: PublishPipelineArtifact@1
@@ -159,6 +150,22 @@ stages:
                     publishLocation: 'pipeline'
 
                 - task: AzureCLI@2
+                  displayName: 'Seed Secrets to Key Vault (Dev)'
+                  inputs:
+                    azureSubscription: $(azureSubscription)
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      # Extract Key Vault name from deployment outputs
+                      KEY_VAULT_NAME=$(cat "$(Build.ArtifactStagingDirectory)/deployment-dev.json" | jq -r '.keyVaultName')
+                      
+                      echo "Seeding secrets to Key Vault: $KEY_VAULT_NAME"
+                      
+                      bash "$(Build.SourcesDirectory)/infra/scripts/seed-secrets.sh" \
+                        --key-vault "$KEY_VAULT_NAME" \
+                        --api-key "$(NBA_API_KEY)"
+
+                - task: AzureCLI@2
                   displayName: 'Initialize Database Schema (Dev)'
                   inputs:
                     azureSubscription: $(azureSubscription)
@@ -166,7 +173,7 @@ stages:
                     scriptLocation: 'inlineScript'
                     inlineScript: |
                       # Extract PostgreSQL server FQDN from deployment outputs
-                      POSTGRES_FQDN=$(cat "$(Build.ArtifactStagingDirectory)/deployment-dev.json" | jq -r '.properties.outputs.postgresServerFqdn.value')
+                      POSTGRES_FQDN=$(cat "$(Build.ArtifactStagingDirectory)/deployment-dev.json" | jq -r '.postgresServerFqdn')
                       
                       echo "Initializing database schema..."
                       echo "PostgreSQL Server: $POSTGRES_FQDN"
@@ -269,16 +276,6 @@ stages:
                 - checkout: self
 
                 - task: AzureCLI@2
-                  displayName: 'Seed Secrets to Key Vault (Test)'
-                  inputs:
-                    azureSubscription: $(azureSubscription)
-                    scriptType: 'bash'
-                    scriptLocation: 'scriptPath'
-                    scriptPath: '$(Build.SourcesDirectory)/infra/scripts/seed-secrets.sh'
-                    arguments: '--key-vault nba-stats-test-kv-$(KV_SUFFIX) --api-key $(NBA_API_KEY)'
-                  continueOnError: true
-
-                - task: AzureCLI@2
                   displayName: 'Deploy Bicep Template (Test)'
                   inputs:
                     azureSubscription: $(azureSubscription)
@@ -295,7 +292,11 @@ stages:
                         --parameters location='$(location)' \
                         --parameters postgresAdminPassword='$(POSTGRES_ADMIN_PASSWORD)' \
                         --parameters nbaApiKey='$(NBA_API_KEY)' \
+                        --query '{keyVaultName:properties.outputs.keyVaultName.value,postgresServerFqdn:properties.outputs.postgresServerFqdn.value,resourceGroupName:properties.outputs.resourceGroupName.value}' \
                         --output json > "$(Build.ArtifactStagingDirectory)/deployment-test.json"
+                      
+                      echo "Deployment complete. Outputs:"
+                      cat "$(Build.ArtifactStagingDirectory)/deployment-test.json"
 
                 - task: PublishPipelineArtifact@1
                   displayName: 'Publish Deployment Outputs (Test)'
@@ -305,13 +306,31 @@ stages:
                     publishLocation: 'pipeline'
 
                 - task: AzureCLI@2
+                  displayName: 'Seed Secrets to Key Vault (Test)'
+                  inputs:
+                    azureSubscription: $(azureSubscription)
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      KEY_VAULT_NAME=$(cat "$(Build.ArtifactStagingDirectory)/deployment-test.json" | jq -r '.keyVaultName')
+                      
+                      echo "Seeding secrets to Key Vault: $KEY_VAULT_NAME"
+                      
+                      bash "$(Build.SourcesDirectory)/infra/scripts/seed-secrets.sh" \
+                        --key-vault "$KEY_VAULT_NAME" \
+                        --api-key "$(NBA_API_KEY)"
+
+                - task: AzureCLI@2
                   displayName: 'Initialize Database Schema (Test)'
                   inputs:
                     azureSubscription: $(azureSubscription)
                     scriptType: 'bash'
                     scriptLocation: 'inlineScript'
                     inlineScript: |
-                      POSTGRES_FQDN=$(cat "$(Build.ArtifactStagingDirectory)/deployment-test.json" | jq -r '.properties.outputs.postgresServerFqdn.value')
+                      POSTGRES_FQDN=$(cat "$(Build.ArtifactStagingDirectory)/deployment-test.json" | jq -r '.postgresServerFqdn')
+                      
+                      echo "Initializing database schema..."
+                      echo "PostgreSQL Server: $POSTGRES_FQDN"
                       
                       bash "$(Build.SourcesDirectory)/infra/scripts/init-database.sh" \
                         --server "$POSTGRES_FQDN" \
@@ -406,16 +425,6 @@ stages:
                 - checkout: self
 
                 - task: AzureCLI@2
-                  displayName: 'Seed Secrets to Key Vault (Prod)'
-                  inputs:
-                    azureSubscription: $(azureSubscription)
-                    scriptType: 'bash'
-                    scriptLocation: 'scriptPath'
-                    scriptPath: '$(Build.SourcesDirectory)/infra/scripts/seed-secrets.sh'
-                    arguments: '--key-vault nba-stats-prod-kv-$(KV_SUFFIX) --api-key $(NBA_API_KEY)'
-                  continueOnError: true
-
-                - task: AzureCLI@2
                   displayName: 'Deploy Bicep Template (Prod)'
                   inputs:
                     azureSubscription: $(azureSubscription)
@@ -432,7 +441,11 @@ stages:
                         --parameters location='$(location)' \
                         --parameters postgresAdminPassword='$(POSTGRES_ADMIN_PASSWORD)' \
                         --parameters nbaApiKey='$(NBA_API_KEY)' \
+                        --query '{keyVaultName:properties.outputs.keyVaultName.value,postgresServerFqdn:properties.outputs.postgresServerFqdn.value,resourceGroupName:properties.outputs.resourceGroupName.value}' \
                         --output json > "$(Build.ArtifactStagingDirectory)/deployment-prod.json"
+                      
+                      echo "Deployment complete. Outputs:"
+                      cat "$(Build.ArtifactStagingDirectory)/deployment-prod.json"
 
                 - task: PublishPipelineArtifact@1
                   displayName: 'Publish Deployment Outputs (Prod)'
@@ -442,13 +455,31 @@ stages:
                     publishLocation: 'pipeline'
 
                 - task: AzureCLI@2
+                  displayName: 'Seed Secrets to Key Vault (Prod)'
+                  inputs:
+                    azureSubscription: $(azureSubscription)
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      KEY_VAULT_NAME=$(cat "$(Build.ArtifactStagingDirectory)/deployment-prod.json" | jq -r '.keyVaultName')
+                      
+                      echo "Seeding secrets to Key Vault: $KEY_VAULT_NAME"
+                      
+                      bash "$(Build.SourcesDirectory)/infra/scripts/seed-secrets.sh" \
+                        --key-vault "$KEY_VAULT_NAME" \
+                        --api-key "$(NBA_API_KEY)"
+
+                - task: AzureCLI@2
                   displayName: 'Initialize Database Schema (Prod)'
                   inputs:
                     azureSubscription: $(azureSubscription)
                     scriptType: 'bash'
                     scriptLocation: 'inlineScript'
                     inlineScript: |
-                      POSTGRES_FQDN=$(cat "$(Build.ArtifactStagingDirectory)/deployment-prod.json" | jq -r '.properties.outputs.postgresServerFqdn.value')
+                      POSTGRES_FQDN=$(cat "$(Build.ArtifactStagingDirectory)/deployment-prod.json" | jq -r '.postgresServerFqdn')
+                      
+                      echo "Initializing database schema..."
+                      echo "PostgreSQL Server: $POSTGRES_FQDN"
                       
                       bash "$(Build.SourcesDirectory)/infra/scripts/init-database.sh" \
                         --server "$POSTGRES_FQDN" \
