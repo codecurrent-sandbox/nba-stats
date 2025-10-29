@@ -101,8 +101,8 @@ var resourcePrefix = '${appName}-${environment}'
 var uniqueSuffix = uniqueString(rg.id)
 var containerRegistryName = replace('${resourcePrefix}acr${uniqueSuffix}', '-', '')
 // Key Vault name must be 3-24 chars. Using 'kv' prefix and unique suffix to keep it short
-// Adding extra char from suffix to avoid conflicts with soft-deleted vaults
-var keyVaultName = 'kv-${appName}-${environment}-${take(uniqueSuffix, 7)}'
+// Using guid to avoid conflicts with soft-deleted vaults
+var keyVaultName = 'kv-${appName}-${environment}-${take(uniqueString(guid(rg.id, deployment().name)), 7)}'
 var logAnalyticsName = '${resourcePrefix}-logs'
 var appInsightsName = '${resourcePrefix}-ai'
 var managedIdentityName = '${resourcePrefix}-identity'
