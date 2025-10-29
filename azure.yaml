@@ -31,8 +31,10 @@ infra:
     test: ./infra/parameters/test.bicepparam
     prod: ./infra/parameters/prod.bicepparam
 
+pipeline:
+  provider: azdo
+
 hooks:
-  
   postprovision:
     posix:
       shell: sh
@@ -61,3 +63,4 @@ hooks:
         fi
         
         echo "Post-provision complete"
+

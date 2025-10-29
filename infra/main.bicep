@@ -3,6 +3,8 @@
 
 targetScope = 'subscription'
 
+metadata description = 'NBA Stats Application - Azure Infrastructure'
+
 // ============================================================================
 // PARAMETERS
 // ============================================================================
@@ -55,10 +57,6 @@ param postgresSku string = environment == 'prod' ? 'Standard_D2ds_v4' : 'Standar
 param postgresStorageGB int = environment == 'prod' ? 128 : 32
 
 // Container Apps Parameters
-@description('NBA API Key for BallDontLie API')
-@secure()
-param nbaApiKey string
-
 @description('Frontend container image')
 param frontendImage string = ''
 
@@ -70,6 +68,11 @@ param minReplicas int = environment == 'prod' ? 2 : 1
 
 @description('Maximum replica count for Container Apps')
 param maxReplicas int = environment == 'prod' ? 10 : 3
+
+// NBA API Configuration
+@description('NBA API Key from BallDontLie')
+@secure()
+param nbaApiKey string = ''
 
 // Feature Flags
 @description('Enable private endpoints (recommended for production)')
@@ -97,8 +100,9 @@ resource rg 'Microsoft.Resources/resourceGroups@2024-03-01' = {
 var resourcePrefix = '${appName}-${environment}'
 var uniqueSuffix = uniqueString(rg.id)
 var containerRegistryName = replace('${resourcePrefix}acr${uniqueSuffix}', '-', '')
-// Add timestamp to Key Vault name to avoid conflicts with soft-deleted vaults
-var keyVaultName = '${resourcePrefix}-kv-${take(uniqueSuffix, 5)}${take(uniqueString(utcNow()), 3)}'
+// Key Vault name must be 3-24 chars. Using 'kv' prefix and unique suffix to keep it short
+// Adding extra char from suffix to avoid conflicts with soft-deleted vaults
+var keyVaultName = 'kv-${appName}-${environment}-${take(uniqueSuffix, 7)}'
 var logAnalyticsName = '${resourcePrefix}-logs'
 var appInsightsName = '${resourcePrefix}-ai'
 var managedIdentityName = '${resourcePrefix}-identity'
@@ -161,6 +165,8 @@ module keyVault 'modules/secrets/key-vault.bicep' = {
     privateEndpointSubnetId: enablePrivateEndpoints ? networking.outputs.privateEndpointsSubnetId : ''
     vnetId: networking.outputs.vnetId
     managedIdentityPrincipalId: identity.outputs.principalId
+    logAnalyticsWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
+    nbaApiKey: nbaApiKey
   }
 }
 
@@ -192,9 +198,9 @@ module database 'modules/database/postgres.bicep' = {
     version: '16'
     enablePrivateEndpoint: enablePrivateEndpoints
     postgresSubnetId: networking.outputs.postgresSubnetId
-    privateEndpointSubnetId: enablePrivateEndpoints ? networking.outputs.privateEndpointsSubnetId : ''
     vnetId: networking.outputs.vnetId
     enableZoneRedundancy: enableZoneRedundancy
+    logAnalyticsWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
   }
 }
 
@@ -224,15 +230,16 @@ module apiApp 'modules/container-apps/api-app.bicep' = {
     containerImage: !empty(apiImage) ? apiImage : 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
     containerRegistryName: containerRegistryName
     managedIdentityId: identity.outputs.id
-    keyVaultName: keyVaultName
     appInsightsConnectionString: monitoring.outputs.appInsightsConnectionString
     postgresConnectionString: 'Host=${database.outputs.serverFqdn};Database=nba_stats;Username=${postgresAdminUsername};Password=${postgresAdminPassword};SSL Mode=Require'
     nbaApiKeySecretUri: '${keyVault.outputs.keyVaultUri}secrets/NBA-API-KEY'
+    nbaApiKey: nbaApiKey
     minReplicas: minReplicas
     maxReplicas: maxReplicas
   }
   dependsOn: [
     containerRegistry
+    keyVault
   ]
 }
 
@@ -263,9 +270,7 @@ module alerts 'modules/monitoring/alerts.bicep' = {
   scope: rg
   name: 'deploy-alerts'
   params: {
-    location: location
     tags: tags
-    appInsightsId: monitoring.outputs.appInsightsId
     containerApps: [
       {
         name: apiApp.outputs.name

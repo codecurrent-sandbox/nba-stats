@@ -33,14 +33,14 @@ param enablePrivateEndpoint bool
 @description('PostgreSQL subnet ID for VNet integration')
 param postgresSubnetId string
 
-@description('Private endpoint subnet ID')
-param privateEndpointSubnetId string
-
 @description('Virtual Network ID')
 param vnetId string
 
 @description('Enable zone redundancy')
 param enableZoneRedundancy bool
+
+@description('Log Analytics Workspace ID for diagnostics')
+param logAnalyticsWorkspaceId string = ''
 
 @description('Database name')
 param databaseName string = 'nba_stats'
@@ -119,10 +119,11 @@ resource privateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLin
 }
 
 // Diagnostic Settings
-resource diagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+resource diagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = if (!empty(logAnalyticsWorkspaceId)) {
   name: '${serverName}-diagnostics'
   scope: postgresServer
   properties: {
+    workspaceId: logAnalyticsWorkspaceId
     logs: [
       {
         categoryGroup: 'allLogs'

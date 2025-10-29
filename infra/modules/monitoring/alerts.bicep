@@ -1,14 +1,8 @@
 // Monitoring Alerts for Container Apps and Database
 targetScope = 'resourceGroup'
 
-@description('Location for alert rules')
-param location string
-
 @description('Tags to apply to resources')
 param tags object
-
-@description('Application Insights resource ID')
-param appInsightsId string
 
 @description('Container Apps to monitor')
 param containerApps array
@@ -51,6 +45,7 @@ resource cpuAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = [for app in con
       'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
       allOf: [
         {
+          criterionType: 'StaticThresholdCriterion'
           name: 'HighCPU'
           metricName: 'UsageNanoCores'
           operator: 'GreaterThan'
@@ -85,6 +80,7 @@ resource memoryAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = [for app in 
       'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
       allOf: [
         {
+          criterionType: 'StaticThresholdCriterion'
           name: 'HighMemory'
           metricName: 'WorkingSetBytes'
           operator: 'GreaterThan'
@@ -119,6 +115,7 @@ resource failedRequestsAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = [for
       'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
       allOf: [
         {
+          criterionType: 'StaticThresholdCriterion'
           name: 'HighFailureRate'
           metricName: 'Requests'
           operator: 'GreaterThan'
@@ -153,6 +150,7 @@ resource postgresCpuAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
       'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
       allOf: [
         {
+          criterionType: 'StaticThresholdCriterion'
           name: 'HighCPU'
           metricName: 'cpu_percent'
           operator: 'GreaterThan'
@@ -187,6 +185,7 @@ resource postgresMemoryAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
       'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
       allOf: [
         {
+          criterionType: 'StaticThresholdCriterion'
           name: 'HighMemory'
           metricName: 'memory_percent'
           operator: 'GreaterThan'

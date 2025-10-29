@@ -24,7 +24,7 @@ param apiImage = ''
 param minReplicas = 1
 param maxReplicas = 3
 
-// NBA API Key
+// NBA API Key - Will be prompted during deployment
 param nbaApiKey = ''
 
 // Feature Flags - Dev doesn't use private endpoints

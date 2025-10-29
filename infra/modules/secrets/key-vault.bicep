@@ -26,6 +26,13 @@ param managedIdentityPrincipalId string
 @allowed(['standard', 'premium'])
 param skuName string = 'standard'
 
+@description('Log Analytics Workspace ID for diagnostics')
+param logAnalyticsWorkspaceId string = ''
+
+@description('NBA API Key to store in Key Vault')
+@secure()
+param nbaApiKey string = ''
+
 // Note: Purge protection cannot be disabled once enabled (Azure enforces this)
 // If you need to recreate the Key Vault, you must wait for soft-delete retention period (7 days)
 // or use a different name
@@ -117,6 +124,44 @@ resource privateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneG
         name: 'privatelink-vaultcore-azure-net'
         properties: {
           privateDnsZoneId: privateDnsZone.id
+        }
+      }
+    ]
+  }
+}
+
+// NBA API Key Secret
+resource nbaApiKeySecret 'Microsoft.KeyVault/vaults/secrets@2023-02-01' = if (!empty(nbaApiKey)) {
+  parent: keyVault
+  name: 'NBA-API-KEY'
+  properties: {
+    value: nbaApiKey
+  }
+}
+
+// Diagnostic Settings for Key Vault
+resource diagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = if (!empty(logAnalyticsWorkspaceId)) {
+  scope: keyVault
+  name: '${keyVaultName}-diagnostics'
+  properties: {
+    workspaceId: logAnalyticsWorkspaceId
+    logs: [
+      {
+        category: 'AuditEvent'
+        enabled: true
+        retentionPolicy: {
+          enabled: false
+          days: 0
+        }
+      }
+    ]
+    metrics: [
+      {
+        category: 'AllMetrics'
+        enabled: true
+        retentionPolicy: {
+          enabled: false
+          days: 0
         }
       }
     ]

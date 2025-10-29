@@ -22,9 +22,6 @@ param containerRegistryName string
 @description('Managed identity ID')
 param managedIdentityId string
 
-@description('Key Vault name')
-param keyVaultName string
-
 @description('Application Insights connection string')
 @secure()
 param appInsightsConnectionString string
@@ -35,6 +32,10 @@ param postgresConnectionString string
 
 @description('NBA API Key secret URI from Key Vault')
 param nbaApiKeySecretUri string
+
+@description('NBA API Key value (used if secret URI is not available)')
+@secure()
+param nbaApiKey string = ''
 
 @description('Minimum replicas')
 param minReplicas int
@@ -89,7 +90,7 @@ resource apiApp 'Microsoft.App/containerApps@2023-05-01' = {
           identity: managedIdentityId
         }
       ]
-      secrets: [
+      secrets: concat([
         {
           name: 'appinsights-connection-string'
           value: appInsightsConnectionString
@@ -98,12 +99,18 @@ resource apiApp 'Microsoft.App/containerApps@2023-05-01' = {
           name: 'postgres-connection-string'
           value: postgresConnectionString
         }
+      ], !empty(nbaApiKey) ? [
+        {
+          name: 'nba-api-key'
+          value: nbaApiKey
+        }
+      ] : [
         {
           name: 'nba-api-key'
           keyVaultUrl: nbaApiKeySecretUri
           identity: managedIdentityId
         }
-      ]
+      ])
     }
     template: {
       containers: [

@@ -103,16 +103,20 @@ Deploy the entire application to Azure with a single command using [Azure Develo
 # Login to Azure
 azd auth login
 
-# Provision infrastructure and deploy application
-azd up
+# Initialize environment (one-time setup)
+azd env new dev
+azd env set AZURE_LOCATION swedencentral
 
-# You'll be prompted for:
-# - Environment name (e.g., "dev", "test", "prod")
-# - Azure subscription
-# - Azure region (e.g., "swedencentral", "westeurope")
-# - NBA API key
-# - PostgreSQL admin password
+# Deploy everything
+azd up
 ```
+
+The `azd up` command will prompt you for:
+- Azure subscription (if not already set)
+- NBA API key
+- PostgreSQL admin password
+
+**💡 Tip:** Always run `azd env set AZURE_LOCATION <region>` after creating a new environment to avoid deployment errors.
 
 That's it! `azd up` will:
 1. ✅ Create Azure resources (Container Apps, PostgreSQL, Key Vault, etc.)
@@ -491,6 +495,7 @@ azd down
 - If you get a "VaultAlreadyExists" error, the Key Vault is soft-deleted
 - Dev/Test environments: Purge protection is disabled, run `az keyvault purge --name <vault-name>`
 - Production: Purge protection is enabled (7-day retention), wait or use a different name
+- **Missing location error**: If you get "location property must be specified", run: `azd env set AZURE_LOCATION swedencentral`
 - To clean up and redeploy: `azd down` then `az keyvault purge --name <vault-name>` then `azd up`
 
 ## Documentation
