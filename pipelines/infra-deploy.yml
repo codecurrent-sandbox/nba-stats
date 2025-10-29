@@ -80,9 +80,10 @@ stages:
               script: |
                 echo "Analyzing what-if results for destructive changes..."
                 
-                # Check for actual delete operations in what-if output (not property names)
-                # Look for lines like "- Delete" or "x Delete" which indicate resource deletion
-                DESTRUCTIVE_CHANGES=$(cat "$(Build.ArtifactStagingDirectory)/whatif-dev.json" | grep -E "^\s*[-x]\s+Delete" || true)
+                # Check for actual delete operations in what-if output
+                # Look for resource deletion patterns like "- Microsoft.xxx/yyy"
+                # Exclude legend lines that just show "- Delete" or "- Create"
+                DESTRUCTIVE_CHANGES=$(cat "$(Build.ArtifactStagingDirectory)/whatif-dev.json" | grep -E "^\s*-\s+Microsoft\." || true)
                 
                 if [ ! -z "$DESTRUCTIVE_CHANGES" ]; then
                   echo "##vso[task.logissue type=warning]Destructive changes detected in what-if analysis!"
@@ -235,8 +236,8 @@ stages:
               script: |
                 echo "Analyzing what-if results for destructive changes..."
                 
-                # Check for actual delete operations (not property names)
-                DESTRUCTIVE_CHANGES=$(cat "$(Build.ArtifactStagingDirectory)/whatif-test.json" | grep -E "^\s*[-x]\s+Delete" || true)
+                # Check for actual resource deletions
+                DESTRUCTIVE_CHANGES=$(cat "$(Build.ArtifactStagingDirectory)/whatif-test.json" | grep -E "^\s*-\s+Microsoft\." || true)
                 
                 if [ ! -z "$DESTRUCTIVE_CHANGES" ]; then
                   echo "##vso[task.logissue type=warning]Destructive changes detected!"
@@ -372,8 +373,8 @@ stages:
             inputs:
               targetType: 'inline'
               script: |
-                # Check for actual delete operations (not property names)
-                DESTRUCTIVE_CHANGES=$(cat "$(Build.ArtifactStagingDirectory)/whatif-prod.json" | grep -E "^\s*[-x]\s+Delete" || true)
+                # Check for actual resource deletions
+                DESTRUCTIVE_CHANGES=$(cat "$(Build.ArtifactStagingDirectory)/whatif-prod.json" | grep -E "^\s*-\s+Microsoft\." || true)
                 
                 if [ ! -z "$DESTRUCTIVE_CHANGES" ]; then
                   echo "##vso[task.logissue type=error]CRITICAL: Destructive changes detected in production!"
