@@ -120,7 +120,7 @@ resource failedRequestsAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = [for
           metricName: 'Requests'
           operator: 'GreaterThan'
           threshold: 10
-          timeAggregation: 'Count'
+          timeAggregation: 'Total'
         }
       ]
     }
