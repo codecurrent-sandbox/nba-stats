@@ -80,15 +80,16 @@ stages:
               script: |
                 echo "Analyzing what-if results for destructive changes..."
                 
-                # Check for delete operations in what-if output
-                DESTRUCTIVE_CHANGES=$(cat "$(Build.ArtifactStagingDirectory)/whatif-dev.json" | grep -i "delete" || true)
+                # Check for actual delete operations in what-if output (not property names)
+                # Look for lines like "- Delete" or "x Delete" which indicate resource deletion
+                DESTRUCTIVE_CHANGES=$(cat "$(Build.ArtifactStagingDirectory)/whatif-dev.json" | grep -E "^\s*[-x]\s+Delete" || true)
                 
                 if [ ! -z "$DESTRUCTIVE_CHANGES" ]; then
                   echo "##vso[task.logissue type=warning]Destructive changes detected in what-if analysis!"
                   echo "$DESTRUCTIVE_CHANGES"
                   
                   # Allow override via variable
-                  if [ "$(ALLOW_DESTRUCTIVE_CHANGES)" != "true" ]; then
+                  if [ "${ALLOW_DESTRUCTIVE_CHANGES}" != "true" ]; then
                     echo "##vso[task.logissue type=error]Deployment blocked due to destructive changes. Set ALLOW_DESTRUCTIVE_CHANGES=true to override."
                     exit 1
                   else
@@ -234,13 +235,14 @@ stages:
               script: |
                 echo "Analyzing what-if results for destructive changes..."
                 
-                DESTRUCTIVE_CHANGES=$(cat "$(Build.ArtifactStagingDirectory)/whatif-test.json" | grep -i "delete" || true)
+                # Check for actual delete operations (not property names)
+                DESTRUCTIVE_CHANGES=$(cat "$(Build.ArtifactStagingDirectory)/whatif-test.json" | grep -E "^\s*[-x]\s+Delete" || true)
                 
                 if [ ! -z "$DESTRUCTIVE_CHANGES" ]; then
                   echo "##vso[task.logissue type=warning]Destructive changes detected!"
                   echo "$DESTRUCTIVE_CHANGES"
                   
-                  if [ "$(ALLOW_DESTRUCTIVE_CHANGES)" != "true" ]; then
+                  if [ "${ALLOW_DESTRUCTIVE_CHANGES}" != "true" ]; then
                     echo "##vso[task.logissue type=error]Deployment blocked. Set ALLOW_DESTRUCTIVE_CHANGES=true to override."
                     exit 1
                   fi
@@ -370,13 +372,14 @@ stages:
             inputs:
               targetType: 'inline'
               script: |
-                DESTRUCTIVE_CHANGES=$(cat "$(Build.ArtifactStagingDirectory)/whatif-prod.json" | grep -i "delete" || true)
+                # Check for actual delete operations (not property names)
+                DESTRUCTIVE_CHANGES=$(cat "$(Build.ArtifactStagingDirectory)/whatif-prod.json" | grep -E "^\s*[-x]\s+Delete" || true)
                 
                 if [ ! -z "$DESTRUCTIVE_CHANGES" ]; then
                   echo "##vso[task.logissue type=error]CRITICAL: Destructive changes detected in production!"
                   echo "$DESTRUCTIVE_CHANGES"
                   
-                  if [ "$(ALLOW_DESTRUCTIVE_CHANGES)" != "true" ]; then
+                  if [ "${ALLOW_DESTRUCTIVE_CHANGES}" != "true" ]; then
                     echo "##vso[task.logissue type=error]Production deployment blocked!"
                     exit 1
                   fi
