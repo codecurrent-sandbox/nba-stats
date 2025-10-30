@@ -70,7 +70,10 @@ resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2023-03-01-pr
     network: enablePrivateEndpoint ? {
       delegatedSubnetResourceId: postgresSubnetId
       privateDnsZoneArmResourceId: privateDnsZone.id
-    } : null
+      publicNetworkAccess: 'Disabled'
+    } : {
+      publicNetworkAccess: 'Enabled'
+    }
     authConfig: {
       activeDirectoryAuth: 'Disabled'
       passwordAuth: 'Enabled'
