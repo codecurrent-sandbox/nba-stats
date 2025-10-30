@@ -168,6 +168,7 @@ module keyVault 'modules/secrets/key-vault.bicep' = {
     enablePrivateEndpoint: enablePrivateEndpoints
     privateEndpointSubnetId: enablePrivateEndpoints ? networking.outputs.privateEndpointsSubnetId : ''
     vnetId: networking.outputs.vnetId
+    privateDnsZoneId: networking.outputs.keyVaultPrivateDnsZoneId
     managedIdentityPrincipalId: identity.outputs.principalId
     azureDevOpsServicePrincipalId: azureDevOpsServicePrincipalId
     logAnalyticsWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId

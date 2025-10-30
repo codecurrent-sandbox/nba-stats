@@ -25,6 +25,9 @@ param managedIdentityPrincipalId string
 @description('Azure DevOps Service Principal Object ID for deployment access')
 param azureDevOpsServicePrincipalId string = ''
 
+@description('Private DNS Zone ID for Key Vault private endpoints')
+param privateDnsZoneId string = ''
+
 @description('SKU name for Key Vault')
 @allowed(['standard', 'premium'])
 param skuName string = 'standard'
@@ -110,28 +113,8 @@ resource privateEndpoint 'Microsoft.Network/privateEndpoints@2023-05-01' = if (e
   }
 }
 
-// Private DNS Zone for Key Vault (if private endpoint enabled)
-resource privateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = if (enablePrivateEndpoint) {
-  name: 'privatelink.vaultcore.azure.net'
-  location: 'global'
-  tags: tags
-}
-
-// Link Private DNS Zone to VNet
-resource privateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = if (enablePrivateEndpoint) {
-  parent: privateDnsZone
-  name: '${keyVaultName}-dns-link'
-  location: 'global'
-  properties: {
-    registrationEnabled: false
-    virtualNetwork: {
-      id: vnetId
-    }
-  }
-}
-
-// DNS Zone Group
-resource privateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-05-01' = if (enablePrivateEndpoint) {
+// DNS Zone Group - connects private endpoint to existing DNS zone
+resource privateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-05-01' = if (enablePrivateEndpoint && !empty(privateDnsZoneId)) {
   parent: privateEndpoint
   name: 'default'
   properties: {
@@ -139,7 +122,7 @@ resource privateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneG
       {
         name: 'privatelink-vaultcore-azure-net'
         properties: {
-          privateDnsZoneId: privateDnsZone.id
+          privateDnsZoneId: privateDnsZoneId
         }
       }
     ]
