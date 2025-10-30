@@ -182,7 +182,8 @@ stages:
                         --server "$POSTGRES_FQDN" \
                         --database "nba_stats" \
                         --username "nbastatsadmin" \
-                        --password "$(POSTGRES_ADMIN_PASSWORD)"
+                        --password "$(POSTGRES_ADMIN_PASSWORD)" \
+                        --force
 
                 - task: Bash@3
                   displayName: 'Tag Deployment'
@@ -335,7 +336,8 @@ stages:
                         --server "$POSTGRES_FQDN" \
                         --database "nba_stats" \
                         --username "nbastatsadmin" \
-                        --password "$(POSTGRES_ADMIN_PASSWORD)"
+                        --password "$(POSTGRES_ADMIN_PASSWORD)" \
+                        --force
 
                 - task: Bash@3
                   displayName: 'Tag Deployment'
@@ -484,14 +486,15 @@ stages:
                         --server "$POSTGRES_FQDN" \
                         --database "nba_stats" \
                         --username "nbastatsadmin" \
-                        --password "$(POSTGRES_ADMIN_PASSWORD)"
+                        --password "$(POSTGRES_ADMIN_PASSWORD)" \
+                        --force
 
                 - task: Bash@3
                   displayName: 'Tag Deployment'
                   inputs:
                     targetType: 'inline'
                     script: |
-                      git tag -a "infra-prod-$(Build.BuildNumber)" -m "Infrastructure deployment to production - $(Build.BuildNumber)"
+                      git tag -a "infra-prod-$(Build.BuildNumber)" -m "Infrastructure deployment to prod - $(Build.BuildNumber)"
                       echo "##vso[task.setvariable variable=DEPLOYMENT_TAG]infra-prod-$(Build.BuildNumber)"
 
                 - task: Bash@3

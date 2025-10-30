@@ -37,11 +37,12 @@ OPTIONS:
     -u, --username       Admin username - REQUIRED
     -p, --password       Admin password - REQUIRED
     -f, --schema-file    Path to schema SQL file
+    --force              Skip confirmation prompt if tables exist (for CI/CD)
     -h, --help           Display this help message
 
 EXAMPLES:
     $0 -s myserver.postgres.database.azure.com -u admin -p password
-    $0 --server myserver.postgres.database.azure.com --username admin --password \$DB_PASSWORD
+    $0 --server myserver.postgres.database.azure.com --username admin --password \$DB_PASSWORD --force
 
 ENVIRONMENT VARIABLES:
     POSTGRES_PASSWORD    PostgreSQL admin password (alternative to --password flag)
@@ -56,6 +57,7 @@ DATABASE="nba_stats"
 USERNAME=""
 PASSWORD=""
 SCHEMA_FILE=""
+FORCE=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -78,6 +80,10 @@ while [[ $# -gt 0 ]]; do
         -f|--schema-file)
             SCHEMA_FILE="$2"
             shift 2
+            ;;
+        --force)
+            FORCE=true
+            shift
             ;;
         -h|--help)
             usage
@@ -150,10 +156,14 @@ TABLE_COUNT=$(psql "$CONN_STRING" -t -c "SELECT COUNT(*) FROM information_schema
 
 if [ "$TABLE_COUNT" -gt 0 ]; then
     log_warn "Database already contains $TABLE_COUNT tables"
-    read -p "Do you want to continue and potentially overwrite existing schema? (yes/no): " -r
-    if [[ ! $REPLY =~ ^[Yy]es$ ]]; then
-        log_info "Schema initialization cancelled"
-        exit 0
+    if [ "$FORCE" = false ]; then
+        read -p "Do you want to continue and potentially overwrite existing schema? (yes/no): " -r
+        if [[ ! $REPLY =~ ^[Yy]es$ ]]; then
+            log_info "Schema initialization cancelled"
+            exit 0
+        fi
+    else
+        log_info "Force flag enabled, proceeding with schema initialization"
     fi
 fi
 
