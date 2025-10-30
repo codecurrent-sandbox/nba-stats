@@ -39,9 +39,12 @@ param logAnalyticsWorkspaceId string = ''
 @secure()
 param nbaApiKey string = ''
 
+@description('Enable purge protection (should be true for production)')
+param enablePurgeProtection bool = true
+
 // Note: Purge protection cannot be disabled once enabled (Azure enforces this)
-// If you need to recreate the Key Vault, you must wait for soft-delete retention period (7 days)
-// or use a different name
+// For dev/test, set enablePurgeProtection to false to allow quick iterations
+// For production, always keep it enabled for security and compliance
 
 resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' = {
   name: keyVaultName
@@ -56,7 +59,7 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' = {
     enableRbacAuthorization: false
     enableSoftDelete: true
     softDeleteRetentionInDays: 7
-    enablePurgeProtection: true  // Required by Azure - cannot be disabled once enabled
+    enablePurgeProtection: enablePurgeProtection  // Conditional based on environment
     publicNetworkAccess: enablePrivateEndpoint ? 'Disabled' : 'Enabled'
     networkAcls: {
       bypass: 'AzureServices'

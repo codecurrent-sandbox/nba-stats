@@ -105,8 +105,9 @@ var uniqueSuffix = uniqueString(rg.id)
 var containerRegistryName = replace('${resourcePrefix}acr${uniqueSuffix}', '-', '')
 // Key Vault name must be 3-24 chars. Using 'kv' prefix and unique suffix to keep it short
 // Use resource group ID only (not deployment name) for stable naming across deployments
-// Max length: kv-nba-stats-test- (18) + 6 chars = 24 chars (Azure limit)
-var keyVaultName = 'kv-${appName}-${environment}-${take(uniqueString(rg.id), 6)}'
+// Max length: kv-nba-stats-test- (18) + v2- (3) + 4 chars = 25 chars - adjusted to fit 24 char limit
+// Temporary v2 suffix added to avoid conflicts with soft-deleted vaults that have purge protection
+var keyVaultName = 'kv-${appName}-${environment}-v2-${take(uniqueString(rg.id), 3)}'
 var logAnalyticsName = '${resourcePrefix}-logs'
 var appInsightsName = '${resourcePrefix}-ai'
 var managedIdentityName = '${resourcePrefix}-identity'
@@ -174,6 +175,7 @@ module keyVault 'modules/secrets/key-vault.bicep' = {
     azureDevOpsServicePrincipalId: azureDevOpsServicePrincipalId
     logAnalyticsWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
     nbaApiKey: nbaApiKey
+    enablePurgeProtection: environment == 'prod'  // Only enable purge protection in production
   }
 }
 
