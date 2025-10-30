@@ -130,13 +130,16 @@ stages:
                     scriptType: 'bash'
                     scriptLocation: 'inlineScript'
                     inlineScript: |
+                      set -e  # Exit on error
+                      
                       echo "Deploying to dev environment..."
                       
                       # Get the service principal object ID for the current Azure CLI connection
                       SP_OBJECT_ID=$(az ad sp show --id $(az account show --query user.name -o tsv) --query id -o tsv)
                       echo "Service Principal Object ID: $SP_OBJECT_ID"
                       
-                      az deployment sub create \
+                      # Run deployment and capture outputs
+                      DEPLOYMENT_OUTPUT=$(az deployment sub create \
                         --name "deploy-dev-$(Build.BuildNumber)" \
                         --location "$(location)" \
                         --template-file "$(Build.SourcesDirectory)/infra/main.bicep" \
@@ -146,7 +149,10 @@ stages:
                         --parameters nbaApiKey='$(NBA_API_KEY)' \
                         --parameters azureDevOpsServicePrincipalId="$SP_OBJECT_ID" \
                         --query '{keyVaultName:properties.outputs.keyVaultName.value,postgresServerFqdn:properties.outputs.postgresServerFqdn.value,resourceGroupName:properties.outputs.resourceGroupName.value}' \
-                        --output json > "$(Build.ArtifactStagingDirectory)/deployment-dev.json"
+                        --output json)
+                      
+                      # Save outputs to file
+                      echo "$DEPLOYMENT_OUTPUT" > "$(Build.ArtifactStagingDirectory)/deployment-dev.json"
                       
                       echo "Deployment complete. Outputs:"
                       cat "$(Build.ArtifactStagingDirectory)/deployment-dev.json"
@@ -279,13 +285,16 @@ stages:
                     scriptType: 'bash'
                     scriptLocation: 'inlineScript'
                     inlineScript: |
+                      set -e  # Exit on error
+                      
                       echo "Deploying to test environment..."
                       
                       # Get the service principal object ID for the current Azure CLI connection
                       SP_OBJECT_ID=$(az ad sp show --id $(az account show --query user.name -o tsv) --query id -o tsv)
                       echo "Service Principal Object ID: $SP_OBJECT_ID"
                       
-                      az deployment sub create \
+                      # Run deployment and capture outputs
+                      DEPLOYMENT_OUTPUT=$(az deployment sub create \
                         --name "deploy-test-$(Build.BuildNumber)" \
                         --location "$(location)" \
                         --template-file "$(Build.SourcesDirectory)/infra/main.bicep" \
@@ -295,7 +304,10 @@ stages:
                         --parameters nbaApiKey='$(NBA_API_KEY)' \
                         --parameters azureDevOpsServicePrincipalId="$SP_OBJECT_ID" \
                         --query '{keyVaultName:properties.outputs.keyVaultName.value,postgresServerFqdn:properties.outputs.postgresServerFqdn.value,resourceGroupName:properties.outputs.resourceGroupName.value}' \
-                        --output json > "$(Build.ArtifactStagingDirectory)/deployment-test.json"
+                        --output json)
+                      
+                      # Save outputs to file
+                      echo "$DEPLOYMENT_OUTPUT" > "$(Build.ArtifactStagingDirectory)/deployment-test.json"
                       
                       echo "Deployment complete. Outputs:"
                       cat "$(Build.ArtifactStagingDirectory)/deployment-test.json"
@@ -422,13 +434,16 @@ stages:
                     scriptType: 'bash'
                     scriptLocation: 'inlineScript'
                     inlineScript: |
+                      set -e  # Exit on error
+                      
                       echo "Deploying to production environment..."
                       
                       # Get the service principal object ID for the current Azure CLI connection
                       SP_OBJECT_ID=$(az ad sp show --id $(az account show --query user.name -o tsv) --query id -o tsv)
                       echo "Service Principal Object ID: $SP_OBJECT_ID"
                       
-                      az deployment sub create \
+                      # Run deployment and capture outputs
+                      DEPLOYMENT_OUTPUT=$(az deployment sub create \
                         --name "deploy-prod-$(Build.BuildNumber)" \
                         --location "$(location)" \
                         --template-file "$(Build.SourcesDirectory)/infra/main.bicep" \
@@ -438,7 +453,10 @@ stages:
                         --parameters nbaApiKey='$(NBA_API_KEY)' \
                         --parameters azureDevOpsServicePrincipalId="$SP_OBJECT_ID" \
                         --query '{keyVaultName:properties.outputs.keyVaultName.value,postgresServerFqdn:properties.outputs.postgresServerFqdn.value,resourceGroupName:properties.outputs.resourceGroupName.value}' \
-                        --output json > "$(Build.ArtifactStagingDirectory)/deployment-prod.json"
+                        --output json)
+                      
+                      # Save outputs to file
+                      echo "$DEPLOYMENT_OUTPUT" > "$(Build.ArtifactStagingDirectory)/deployment-prod.json"
                       
                       echo "Deployment complete. Outputs:"
                       cat "$(Build.ArtifactStagingDirectory)/deployment-prod.json"
