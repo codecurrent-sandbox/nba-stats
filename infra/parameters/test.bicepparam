@@ -27,6 +27,7 @@ param maxReplicas = 5
 // NBA API Key
 param nbaApiKey = ''
 
-// Feature Flags - Test uses private endpoints but no zone redundancy
-param enablePrivateEndpoints = true
+// Feature Flags - Test uses public access (no private endpoints) for build agent connectivity
+// Database initialization requires public access from Azure DevOps agents
+param enablePrivateEndpoints = false
 param enableZoneRedundancy = false
