@@ -159,22 +159,6 @@ stages:
                     publishLocation: 'pipeline'
 
                 - task: AzureCLI@2
-                  displayName: 'Seed Secrets to Key Vault (Dev)'
-                  inputs:
-                    azureSubscription: $(azureSubscription)
-                    scriptType: 'bash'
-                    scriptLocation: 'inlineScript'
-                    inlineScript: |
-                      # Extract Key Vault name from deployment outputs
-                      KEY_VAULT_NAME=$(cat "$(Build.ArtifactStagingDirectory)/deployment-dev.json" | jq -r '.keyVaultName')
-                      
-                      echo "Seeding secrets to Key Vault: $KEY_VAULT_NAME"
-                      
-                      bash "$(Build.SourcesDirectory)/infra/scripts/seed-secrets.sh" \
-                        --key-vault "$KEY_VAULT_NAME" \
-                        --api-key "$(NBA_API_KEY)"
-
-                - task: AzureCLI@2
                   displayName: 'Initialize Database Schema (Dev)'
                   inputs:
                     azureSubscription: $(azureSubscription)
@@ -324,21 +308,6 @@ stages:
                     publishLocation: 'pipeline'
 
                 - task: AzureCLI@2
-                  displayName: 'Seed Secrets to Key Vault (Test)'
-                  inputs:
-                    azureSubscription: $(azureSubscription)
-                    scriptType: 'bash'
-                    scriptLocation: 'inlineScript'
-                    inlineScript: |
-                      KEY_VAULT_NAME=$(cat "$(Build.ArtifactStagingDirectory)/deployment-test.json" | jq -r '.keyVaultName')
-                      
-                      echo "Seeding secrets to Key Vault: $KEY_VAULT_NAME"
-                      
-                      bash "$(Build.SourcesDirectory)/infra/scripts/seed-secrets.sh" \
-                        --key-vault "$KEY_VAULT_NAME" \
-                        --api-key "$(NBA_API_KEY)"
-
-                - task: AzureCLI@2
                   displayName: 'Initialize Database Schema (Test)'
                   inputs:
                     azureSubscription: $(azureSubscription)
@@ -480,21 +449,6 @@ stages:
                     targetPath: '$(Build.ArtifactStagingDirectory)/deployment-prod.json'
                     artifact: 'deployment-prod'
                     publishLocation: 'pipeline'
-
-                - task: AzureCLI@2
-                  displayName: 'Seed Secrets to Key Vault (Prod)'
-                  inputs:
-                    azureSubscription: $(azureSubscription)
-                    scriptType: 'bash'
-                    scriptLocation: 'inlineScript'
-                    inlineScript: |
-                      KEY_VAULT_NAME=$(cat "$(Build.ArtifactStagingDirectory)/deployment-prod.json" | jq -r '.keyVaultName')
-                      
-                      echo "Seeding secrets to Key Vault: $KEY_VAULT_NAME"
-                      
-                      bash "$(Build.SourcesDirectory)/infra/scripts/seed-secrets.sh" \
-                        --key-vault "$KEY_VAULT_NAME" \
-                        --api-key "$(NBA_API_KEY)"
 
                 - task: AzureCLI@2
                   displayName: 'Initialize Database Schema (Prod)'

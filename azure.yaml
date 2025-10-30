@@ -39,17 +39,7 @@ hooks:
     posix:
       shell: sh
       run: |
-        echo "Post-provision hook: Seeding Key Vault secrets"
-        
-        # Get Key Vault name from azd environment
-        KEY_VAULT_NAME=$(azd env get-values | grep KEY_VAULT_NAME | cut -d'=' -f2 | tr -d '"')
-        
-        if [ ! -z "$KEY_VAULT_NAME" ]; then
-          echo "Seeding secrets to Key Vault: $KEY_VAULT_NAME"
-          bash ./infra/scripts/seed-secrets.sh --key-vault "$KEY_VAULT_NAME" --api-key "$NBA_API_KEY"
-        else
-          echo "Warning: KEY_VAULT_NAME not found in environment"
-        fi
+        echo "Post-provision hook: Initializing database"
         
         echo "Initializing database schema"
         POSTGRES_FQDN=$(azd env get-values | grep POSTGRES_SERVER_FQDN | cut -d'=' -f2 | tr -d '"')
