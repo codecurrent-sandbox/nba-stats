@@ -105,7 +105,8 @@ var uniqueSuffix = uniqueString(rg.id)
 var containerRegistryName = replace('${resourcePrefix}acr${uniqueSuffix}', '-', '')
 // Key Vault name must be 3-24 chars. Using 'kv' prefix and unique suffix to keep it short
 // Using guid to avoid conflicts with soft-deleted vaults
-var keyVaultName = 'kv-${appName}-${environment}-${take(uniqueString(guid(rg.id, deployment().name)), 7)}'
+// Max length: kv-nba-stats-test- (18) + 6 chars = 24 chars (Azure limit)
+var keyVaultName = 'kv-${appName}-${environment}-${take(uniqueString(guid(rg.id, deployment().name)), 6)}'
 var logAnalyticsName = '${resourcePrefix}-logs'
 var appInsightsName = '${resourcePrefix}-ai'
 var managedIdentityName = '${resourcePrefix}-identity'
