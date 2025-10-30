@@ -74,6 +74,9 @@ param maxReplicas int = environment == 'prod' ? 10 : 3
 @secure()
 param nbaApiKey string = ''
 
+@description('Azure DevOps Service Principal Object ID for Key Vault access during deployment')
+param azureDevOpsServicePrincipalId string = ''
+
 // Feature Flags
 @description('Enable private endpoints (recommended for production)')
 param enablePrivateEndpoints bool = environment == 'prod'
@@ -165,6 +168,7 @@ module keyVault 'modules/secrets/key-vault.bicep' = {
     privateEndpointSubnetId: enablePrivateEndpoints ? networking.outputs.privateEndpointsSubnetId : ''
     vnetId: networking.outputs.vnetId
     managedIdentityPrincipalId: identity.outputs.principalId
+    azureDevOpsServicePrincipalId: azureDevOpsServicePrincipalId
     logAnalyticsWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
     nbaApiKey: nbaApiKey
   }

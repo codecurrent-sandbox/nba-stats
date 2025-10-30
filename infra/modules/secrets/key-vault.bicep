@@ -22,6 +22,9 @@ param vnetId string
 @description('Managed Identity Principal ID for access policy')
 param managedIdentityPrincipalId string
 
+@description('Azure DevOps Service Principal Object ID for deployment access')
+param azureDevOpsServicePrincipalId string = ''
+
 @description('SKU name for Key Vault')
 @allowed(['standard', 'premium'])
 param skuName string = 'standard'
@@ -56,7 +59,7 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' = {
       bypass: 'AzureServices'
       defaultAction: enablePrivateEndpoint ? 'Deny' : 'Allow'
     }
-    accessPolicies: [
+    accessPolicies: concat([
       {
         tenantId: subscription().tenantId
         objectId: managedIdentityPrincipalId
@@ -67,7 +70,20 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' = {
           ]
         }
       }
-    ]
+    ], !empty(azureDevOpsServicePrincipalId) ? [
+      {
+        tenantId: subscription().tenantId
+        objectId: azureDevOpsServicePrincipalId
+        permissions: {
+          secrets: [
+            'get'
+            'list'
+            'set'
+            'delete'
+          ]
+        }
+      }
+    ] : [])
   }
 }
 
