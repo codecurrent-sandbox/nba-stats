@@ -103,11 +103,6 @@ resource rg 'Microsoft.Resources/resourceGroups@2024-03-01' = {
 var resourcePrefix = '${appName}-${environment}'
 var uniqueSuffix = uniqueString(rg.id)
 var containerRegistryName = replace('${resourcePrefix}acr${uniqueSuffix}', '-', '')
-// Key Vault name must be 3-24 chars. Using 'kv' prefix and unique suffix to keep it short
-// Use resource group ID only (not deployment name) for stable naming across deployments
-// Max length: kv-nba-stats-test- (18) + v2- (3) + 4 chars = 25 chars - adjusted to fit 24 char limit
-// Temporary v2 suffix added to avoid conflicts with soft-deleted vaults that have purge protection
-var keyVaultName = 'kv-${appName}-${environment}-v2-${take(uniqueString(rg.id), 3)}'
 var logAnalyticsName = '${resourcePrefix}-logs'
 var appInsightsName = '${resourcePrefix}-ai'
 var managedIdentityName = '${resourcePrefix}-identity'
@@ -159,27 +154,7 @@ module monitoring 'modules/monitoring/log-analytics.bicep' = {
   }
 }
 
-// 4. Key Vault for Secrets Management
-module keyVault 'modules/secrets/key-vault.bicep' = {
-  scope: rg
-  name: 'deploy-keyvault'
-  params: {
-    keyVaultName: keyVaultName
-    location: location
-    tags: tags
-    enablePrivateEndpoint: enablePrivateEndpoints
-    privateEndpointSubnetId: enablePrivateEndpoints ? networking.outputs.privateEndpointsSubnetId : ''
-    vnetId: networking.outputs.vnetId
-    privateDnsZoneId: networking.outputs.keyVaultPrivateDnsZoneId
-    managedIdentityPrincipalId: identity.outputs.principalId
-    azureDevOpsServicePrincipalId: azureDevOpsServicePrincipalId
-    logAnalyticsWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
-    nbaApiKey: nbaApiKey
-    enablePurgeProtection: environment == 'prod'  // Only enable purge protection in production
-  }
-}
-
-// 5. Azure Container Registry
+// 4. Azure Container Registry
 module containerRegistry 'modules/registry/container-registry.bicep' = {
   scope: rg
   name: 'deploy-acr'
@@ -192,7 +167,7 @@ module containerRegistry 'modules/registry/container-registry.bicep' = {
   }
 }
 
-// 6. PostgreSQL Database
+// 5. PostgreSQL Database
 module database 'modules/database/postgres.bicep' = {
   scope: rg
   name: 'deploy-database'
@@ -213,7 +188,7 @@ module database 'modules/database/postgres.bicep' = {
   }
 }
 
-// 7. Container Apps Environment
+// 6. Container Apps Environment
 module containerAppsEnv 'modules/container-apps/environment.bicep' = {
   scope: rg
   name: 'deploy-containerenv'
@@ -227,7 +202,7 @@ module containerAppsEnv 'modules/container-apps/environment.bicep' = {
   }
 }
 
-// 8. API Container App
+// 7. API Container App
 module apiApp 'modules/container-apps/api-app.bicep' = {
   scope: rg
   name: 'deploy-api-app'
@@ -241,18 +216,17 @@ module apiApp 'modules/container-apps/api-app.bicep' = {
     managedIdentityId: identity.outputs.id
     appInsightsConnectionString: monitoring.outputs.appInsightsConnectionString
     postgresConnectionString: 'Host=${database.outputs.serverFqdn};Database=nba_stats;Username=${postgresAdminUsername};Password=${postgresAdminPassword};SSL Mode=Require'
-    nbaApiKeySecretUri: '${keyVault.outputs.keyVaultUri}secrets/NBA-API-KEY'
+    nbaApiKeySecretUri: ''
     nbaApiKey: nbaApiKey
     minReplicas: minReplicas
     maxReplicas: maxReplicas
   }
   dependsOn: [
     containerRegistry
-    keyVault
   ]
 }
 
-// 9. Frontend Container App
+// 8. Frontend Container App
 module frontendApp 'modules/container-apps/frontend-app.bicep' = {
   scope: rg
   name: 'deploy-frontend-app'
@@ -274,7 +248,7 @@ module frontendApp 'modules/container-apps/frontend-app.bicep' = {
   ]
 }
 
-// 10. Alerts and Monitoring
+// 9. Alerts and Monitoring
 module alerts 'modules/monitoring/alerts.bicep' = {
   scope: rg
   name: 'deploy-alerts'
@@ -317,10 +291,6 @@ output logAnalyticsWorkspaceId string = monitoring.outputs.logAnalyticsWorkspace
 output appInsightsId string = monitoring.outputs.appInsightsId
 output appInsightsInstrumentationKey string = monitoring.outputs.appInsightsInstrumentationKey
 output appInsightsConnectionString string = monitoring.outputs.appInsightsConnectionString
-
-// Secrets
-output keyVaultName string = keyVault.outputs.keyVaultName
-output keyVaultUri string = keyVault.outputs.keyVaultUri
 
 // Container Registry
 output containerRegistryName string = containerRegistry.outputs.name

@@ -166,26 +166,6 @@ resource vnet 'Microsoft.Network/virtualNetworks@2023-05-01' = {
   }
 }
 
-// Private DNS Zone for Key Vault private endpoints (only if private endpoints enabled)
-resource keyVaultPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = if (enablePrivateEndpoints) {
-  name: 'privatelink.vaultcore.azure.net'
-  location: 'global'
-  tags: tags
-}
-
-// Link Private DNS Zone to VNet (only if private endpoints enabled)
-resource keyVaultPrivateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = if (enablePrivateEndpoints) {
-  parent: keyVaultPrivateDnsZone
-  name: '${vnetName}-keyvault-dns-link'
-  location: 'global'
-  properties: {
-    registrationEnabled: false
-    virtualNetwork: {
-      id: vnet.id
-    }
-  }
-}
-
 output vnetId string = vnet.id
 output vnetName string = vnet.name
 output containerAppsSubnetId string = vnet.properties.subnets[0].id
@@ -194,4 +174,3 @@ output postgresSubnetId string = vnet.properties.subnets[1].id
 // When disabled: [containerApps, postgres, services]
 output privateEndpointsSubnetId string = enablePrivateEndpoints ? vnet.properties.subnets[3].id : ''
 output servicesSubnetId string = vnet.properties.subnets[2].id
-output keyVaultPrivateDnsZoneId string = enablePrivateEndpoints ? keyVaultPrivateDnsZone.id : ''
