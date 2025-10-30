@@ -25,6 +25,9 @@ param privateEndpointsSubnetPrefix string
 @description('Additional services subnet address prefix')
 param servicesSubnetPrefix string
 
+@description('Enable private endpoints for resources')
+param enablePrivateEndpoints bool = false
+
 // Network Security Group for Container Apps
 resource containerAppsNsg 'Microsoft.Network/networkSecurityGroups@2023-05-01' = {
   name: '${vnetName}-containerApps-nsg'
@@ -86,8 +89,8 @@ resource postgresNsg 'Microsoft.Network/networkSecurityGroups@2023-05-01' = {
   }
 }
 
-// Network Security Group for Private Endpoints
-resource privateEndpointsNsg 'Microsoft.Network/networkSecurityGroups@2023-05-01' = {
+// Network Security Group for Private Endpoints (only if private endpoints enabled)
+resource privateEndpointsNsg 'Microsoft.Network/networkSecurityGroups@2023-05-01' = if (enablePrivateEndpoints) {
   name: '${vnetName}-privateEndpoints-nsg'
   location: location
   tags: tags
@@ -95,6 +98,58 @@ resource privateEndpointsNsg 'Microsoft.Network/networkSecurityGroups@2023-05-01
     securityRules: []
   }
 }
+
+// Base subnets (always created)
+var baseSubnets = [
+  {
+    name: 'containerAppsSubnet'
+    properties: {
+      addressPrefix: containerAppsSubnetPrefix
+      networkSecurityGroup: {
+        id: containerAppsNsg.id
+      }
+      // Container Apps Environment will handle delegation automatically
+      delegations: []
+    }
+  }
+  {
+    name: 'postgresSubnet'
+    properties: {
+      addressPrefix: postgresSubnetPrefix
+      networkSecurityGroup: {
+        id: postgresNsg.id
+      }
+      delegations: [
+        {
+          name: 'Microsoft.DBforPostgreSQL/flexibleServers'
+          properties: {
+            serviceName: 'Microsoft.DBforPostgreSQL/flexibleServers'
+          }
+        }
+      ]
+    }
+  }
+  {
+    name: 'servicesSubnet'
+    properties: {
+      addressPrefix: servicesSubnetPrefix
+    }
+  }
+]
+
+// Private endpoints subnet (only created when enabled)
+var privateEndpointsSubnet = [
+  {
+    name: 'privateEndpointsSubnet'
+    properties: {
+      addressPrefix: privateEndpointsSubnetPrefix
+      networkSecurityGroup: {
+        id: privateEndpointsNsg.id
+      }
+      privateEndpointNetworkPolicies: 'Disabled'
+    }
+  }
+]
 
 // Virtual Network
 resource vnet 'Microsoft.Network/virtualNetworks@2023-05-01' = {
@@ -107,64 +162,19 @@ resource vnet 'Microsoft.Network/virtualNetworks@2023-05-01' = {
         vnetAddressPrefix
       ]
     }
-    subnets: [
-      {
-        name: 'containerAppsSubnet'
-        properties: {
-          addressPrefix: containerAppsSubnetPrefix
-          networkSecurityGroup: {
-            id: containerAppsNsg.id
-          }
-          // Container Apps Environment will handle delegation automatically
-          delegations: []
-        }
-      }
-      {
-        name: 'postgresSubnet'
-        properties: {
-          addressPrefix: postgresSubnetPrefix
-          networkSecurityGroup: {
-            id: postgresNsg.id
-          }
-          delegations: [
-            {
-              name: 'Microsoft.DBforPostgreSQL/flexibleServers'
-              properties: {
-                serviceName: 'Microsoft.DBforPostgreSQL/flexibleServers'
-              }
-            }
-          ]
-        }
-      }
-      {
-        name: 'privateEndpointsSubnet'
-        properties: {
-          addressPrefix: privateEndpointsSubnetPrefix
-          networkSecurityGroup: {
-            id: privateEndpointsNsg.id
-          }
-          privateEndpointNetworkPolicies: 'Disabled'
-        }
-      }
-      {
-        name: 'servicesSubnet'
-        properties: {
-          addressPrefix: servicesSubnetPrefix
-        }
-      }
-    ]
+    subnets: enablePrivateEndpoints ? union(baseSubnets, privateEndpointsSubnet) : baseSubnets
   }
 }
 
-// Private DNS Zone for Key Vault private endpoints
-resource keyVaultPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = {
+// Private DNS Zone for Key Vault private endpoints (only if private endpoints enabled)
+resource keyVaultPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = if (enablePrivateEndpoints) {
   name: 'privatelink.vaultcore.azure.net'
   location: 'global'
   tags: tags
 }
 
-// Link Private DNS Zone to VNet
-resource keyVaultPrivateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = {
+// Link Private DNS Zone to VNet (only if private endpoints enabled)
+resource keyVaultPrivateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = if (enablePrivateEndpoints) {
   parent: keyVaultPrivateDnsZone
   name: '${vnetName}-keyvault-dns-link'
   location: 'global'
@@ -180,6 +190,8 @@ output vnetId string = vnet.id
 output vnetName string = vnet.name
 output containerAppsSubnetId string = vnet.properties.subnets[0].id
 output postgresSubnetId string = vnet.properties.subnets[1].id
-output privateEndpointsSubnetId string = vnet.properties.subnets[2].id
-output servicesSubnetId string = vnet.properties.subnets[3].id
-output keyVaultPrivateDnsZoneId string = keyVaultPrivateDnsZone.id
+// When private endpoints enabled: [containerApps, postgres, services, privateEndpoints]
+// When disabled: [containerApps, postgres, services]
+output privateEndpointsSubnetId string = enablePrivateEndpoints ? vnet.properties.subnets[3].id : ''
+output servicesSubnetId string = vnet.properties.subnets[2].id
+output keyVaultPrivateDnsZoneId string = enablePrivateEndpoints ? keyVaultPrivateDnsZone.id : ''

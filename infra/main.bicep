@@ -142,6 +142,7 @@ module networking 'modules/networking/vnet.bicep' = {
     postgresSubnetPrefix: postgresSubnetPrefix
     privateEndpointsSubnetPrefix: privateEndpointsSubnetPrefix
     servicesSubnetPrefix: servicesSubnetPrefix
+    enablePrivateEndpoints: enablePrivateEndpoints
   }
 }
 
