@@ -52,9 +52,6 @@ stages:
               inlineScript: |
                 echo "Running what-if analysis for dev environment..."
                 
-                # Get the service principal object ID
-                SP_OBJECT_ID=$(az ad sp show --id $(az account show --query user.name -o tsv) --query id -o tsv)
-                
                 az deployment sub what-if \
                   --name "whatif-dev-$(Build.BuildNumber)" \
                   --location "$(location)" \
@@ -63,7 +60,6 @@ stages:
                   --parameters location='$(location)' \
                   --parameters postgresAdminPassword='$(POSTGRES_ADMIN_PASSWORD)' \
                   --parameters nbaApiKey='$(NBA_API_KEY)' \
-                  --parameters azureDevOpsServicePrincipalId="$SP_OBJECT_ID" \
                   --result-format "FullResourcePayloads" \
                   > "$(Build.ArtifactStagingDirectory)/whatif-dev.json"
                 
@@ -134,10 +130,6 @@ stages:
                       
                       echo "Deploying to dev environment..."
                       
-                      # Get the service principal object ID for the current Azure CLI connection
-                      SP_OBJECT_ID=$(az ad sp show --id $(az account show --query user.name -o tsv) --query id -o tsv)
-                      echo "Service Principal Object ID: $SP_OBJECT_ID"
-                      
                       # Run deployment and capture outputs
                       DEPLOYMENT_OUTPUT=$(az deployment sub create \
                         --name "deploy-dev-$(Build.BuildNumber)" \
@@ -147,7 +139,6 @@ stages:
                         --parameters location='$(location)' \
                         --parameters postgresAdminPassword='$(POSTGRES_ADMIN_PASSWORD)' \
                         --parameters nbaApiKey='$(NBA_API_KEY)' \
-                        --parameters azureDevOpsServicePrincipalId="$SP_OBJECT_ID" \
                         --query '{postgresServerFqdn:properties.outputs.postgresServerFqdn.value,resourceGroupName:properties.outputs.resourceGroupName.value}' \
                         --output json)
                       
@@ -238,7 +229,6 @@ stages:
                   --parameters location='$(location)' \
                   --parameters postgresAdminPassword='$(POSTGRES_ADMIN_PASSWORD)' \
                   --parameters nbaApiKey='$(NBA_API_KEY)' \
-                  --parameters azureDevOpsServicePrincipalId="$SP_OBJECT_ID" \
                   --result-format "FullResourcePayloads" \
                   > "$(Build.ArtifactStagingDirectory)/whatif-test.json"
                 
@@ -302,10 +292,6 @@ stages:
                       
                       echo "Deploying to test environment..."
                       
-                      # Get the service principal object ID for the current Azure CLI connection
-                      SP_OBJECT_ID=$(az ad sp show --id $(az account show --query user.name -o tsv) --query id -o tsv)
-                      echo "Service Principal Object ID: $SP_OBJECT_ID"
-                      
                       # Run deployment and capture outputs
                       DEPLOYMENT_OUTPUT=$(az deployment sub create \
                         --name "deploy-test-$(Build.BuildNumber)" \
@@ -315,7 +301,6 @@ stages:
                         --parameters location='$(location)' \
                         --parameters postgresAdminPassword='$(POSTGRES_ADMIN_PASSWORD)' \
                         --parameters nbaApiKey='$(NBA_API_KEY)' \
-                        --parameters azureDevOpsServicePrincipalId="$SP_OBJECT_ID" \
                         --query '{postgresServerFqdn:properties.outputs.postgresServerFqdn.value,resourceGroupName:properties.outputs.resourceGroupName.value}' \
                         --output json)
                       
@@ -393,9 +378,6 @@ stages:
               inlineScript: |
                 echo "Running what-if analysis for production environment..."
                 
-                # Get the service principal object ID
-                SP_OBJECT_ID=$(az ad sp show --id $(az account show --query user.name -o tsv) --query id -o tsv)
-                
                 az deployment sub what-if \
                   --name "whatif-prod-$(Build.BuildNumber)" \
                   --location "$(location)" \
@@ -404,7 +386,6 @@ stages:
                   --parameters location='$(location)' \
                   --parameters postgresAdminPassword='$(POSTGRES_ADMIN_PASSWORD)' \
                   --parameters nbaApiKey='$(NBA_API_KEY)' \
-                  --parameters azureDevOpsServicePrincipalId="$SP_OBJECT_ID" \
                   --result-format "FullResourcePayloads" \
                   > "$(Build.ArtifactStagingDirectory)/whatif-prod.json"
                 
@@ -465,10 +446,6 @@ stages:
                       
                       echo "Deploying to production environment..."
                       
-                      # Get the service principal object ID for the current Azure CLI connection
-                      SP_OBJECT_ID=$(az ad sp show --id $(az account show --query user.name -o tsv) --query id -o tsv)
-                      echo "Service Principal Object ID: $SP_OBJECT_ID"
-                      
                       # Run deployment and capture outputs
                       DEPLOYMENT_OUTPUT=$(az deployment sub create \
                         --name "deploy-prod-$(Build.BuildNumber)" \
@@ -478,7 +455,6 @@ stages:
                         --parameters location='$(location)' \
                         --parameters postgresAdminPassword='$(POSTGRES_ADMIN_PASSWORD)' \
                         --parameters nbaApiKey='$(NBA_API_KEY)' \
-                        --parameters azureDevOpsServicePrincipalId="$SP_OBJECT_ID" \
                         --query '{postgresServerFqdn:properties.outputs.postgresServerFqdn.value,resourceGroupName:properties.outputs.resourceGroupName.value}' \
                         --output json)
                       

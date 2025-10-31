@@ -74,9 +74,6 @@ param maxReplicas int = environment == 'prod' ? 10 : 3
 @secure()
 param nbaApiKey string = ''
 
-@description('Azure DevOps Service Principal Object ID for Key Vault access during deployment')
-param azureDevOpsServicePrincipalId string = ''
-
 // Feature Flags
 @description('Enable private endpoints (recommended for production)')
 param enablePrivateEndpoints bool = environment == 'prod'
@@ -184,8 +181,8 @@ module database 'modules/database/postgres.bicep' = {
     storageSizeGB: postgresStorageGB
     version: '16'
     enablePrivateEndpoint: enablePrivateEndpoints
-    postgresSubnetId: networking.outputs.postgresSubnetId
-    vnetId: networking.outputs.vnetId
+    postgresSubnetId: enablePrivateEndpoints ? networking.outputs.postgresSubnetId : ''
+    vnetId: enablePrivateEndpoints ? networking.outputs.vnetId : ''
     enableZoneRedundancy: enableZoneRedundancy
     logAnalyticsWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
     allowAzureServicesAccess: allowAzureServicesAccess
@@ -200,7 +197,7 @@ module containerAppsEnv 'modules/container-apps/environment.bicep' = {
     environmentName: containerEnvName
     location: location
     tags: tags
-    infrastructureSubnetId: networking.outputs.containerAppsSubnetId
+    infrastructureSubnetId: enablePrivateEndpoints ? networking.outputs.containerAppsSubnetId : ''
     logAnalyticsWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
     enableZoneRedundancy: enableZoneRedundancy
   }
