@@ -73,7 +73,8 @@ resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2023-03-01-pr
     network: enablePrivateEndpoint ? {
       delegatedSubnetResourceId: postgresSubnetId
       privateDnsZoneArmResourceId: privateDnsZone.id
-      publicNetworkAccess: 'Disabled'
+      // Temporarily enable public access during initialization, then disable it
+      publicNetworkAccess: allowAzureServicesAccess ? 'Enabled' : 'Disabled'
     } : {
       publicNetworkAccess: 'Enabled'
     }
