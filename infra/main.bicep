@@ -128,8 +128,8 @@ module identity 'modules/identity/managed-identity.bicep' = {
   }
 }
 
-// 2. Networking Infrastructure
-module networking 'modules/networking/vnet.bicep' = {
+// 2. Networking Infrastructure (only needed for private endpoints)
+module networking 'modules/networking/vnet.bicep' = if (enablePrivateEndpoints) {
   scope: rg
   name: 'deploy-networking'
   params: {
@@ -287,8 +287,8 @@ output managedIdentityClientId string = identity.outputs.clientId
 output managedIdentityPrincipalId string = identity.outputs.principalId
 
 // Networking
-output vnetId string = networking.outputs.vnetId
-output vnetName string = networking.outputs.vnetName
+output vnetId string = enablePrivateEndpoints ? networking.outputs.vnetId : ''
+output vnetName string = enablePrivateEndpoints ? networking.outputs.vnetName : ''
 
 // Monitoring
 output logAnalyticsWorkspaceId string = monitoring.outputs.logAnalyticsWorkspaceId

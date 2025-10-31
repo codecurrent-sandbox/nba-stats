@@ -496,32 +496,6 @@ stages:
                     publishLocation: 'pipeline'
 
                 - task: AzureCLI@2
-                  displayName: 'Enable Azure Services Access (Prod)'
-                  inputs:
-                    azureSubscription: $(azureSubscription)
-                    scriptType: 'bash'
-                    scriptLocation: 'inlineScript'
-                    inlineScript: |
-                      echo "Temporarily enabling Azure services access for database initialization..."
-                      
-                      # Get the service principal object ID
-                      SP_OBJECT_ID=$(az ad sp show --id $(az account show --query user.name -o tsv) --query id -o tsv)
-                      
-                      # Redeploy with temporary access enabled
-                      az deployment sub create \
-                        --name "deploy-prod-$(Build.BuildNumber)-dbaccess" \
-                        --location "$(location)" \
-                        --template-file "$(Build.SourcesDirectory)/infra/main.bicep" \
-                        --parameters "$(Build.SourcesDirectory)/infra/parameters/prod.bicepparam" \
-                        --parameters location='$(location)' \
-                        --parameters postgresAdminPassword='$(POSTGRES_ADMIN_PASSWORD)' \
-                        --parameters nbaApiKey='$(NBA_API_KEY)' \
-                        --parameters azureDevOpsServicePrincipalId="$SP_OBJECT_ID" \
-                        --parameters allowAzureServicesAccess=true
-                      
-                      echo "Azure services access enabled"
-
-                - task: AzureCLI@2
                   displayName: 'Initialize Database Schema (Prod)'
                   inputs:
                     azureSubscription: $(azureSubscription)
@@ -533,43 +507,12 @@ stages:
                       echo "Initializing database schema..."
                       echo "PostgreSQL Server: $POSTGRES_FQDN"
                       
-                      # Wait a moment for firewall rule to propagate
-                      echo "Waiting for firewall rule to propagate..."
-                      sleep 30
-                      
                       bash "$(Build.SourcesDirectory)/infra/scripts/init-database.sh" \
                         --server "$POSTGRES_FQDN" \
                         --database "nba_stats" \
                         --username "nbastatsadmin" \
                         --password "$(POSTGRES_ADMIN_PASSWORD)" \
                         --force
-
-                - task: AzureCLI@2
-                  displayName: 'Disable Azure Services Access (Prod)'
-                  condition: always()
-                  inputs:
-                    azureSubscription: $(azureSubscription)
-                    scriptType: 'bash'
-                    scriptLocation: 'inlineScript'
-                    inlineScript: |
-                      echo "Removing temporary Azure services access..."
-                      
-                      # Get the service principal object ID
-                      SP_OBJECT_ID=$(az ad sp show --id $(az account show --query user.name -o tsv) --query id -o tsv)
-                      
-                      # Redeploy with access disabled
-                      az deployment sub create \
-                        --name "deploy-prod-$(Build.BuildNumber)-secure" \
-                        --location "$(location)" \
-                        --template-file "$(Build.SourcesDirectory)/infra/main.bicep" \
-                        --parameters "$(Build.SourcesDirectory)/infra/parameters/prod.bicepparam" \
-                        --parameters location='$(location)' \
-                        --parameters postgresAdminPassword='$(POSTGRES_ADMIN_PASSWORD)' \
-                        --parameters nbaApiKey='$(NBA_API_KEY)' \
-                        --parameters azureDevOpsServicePrincipalId="$SP_OBJECT_ID" \
-                        --parameters allowAzureServicesAccess=false
-                      
-                      echo "Azure services access removed - database is now secure"
 
                 - task: Bash@3
                   displayName: 'Tag Deployment'

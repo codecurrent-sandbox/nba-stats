@@ -30,11 +30,11 @@ param version string
 @description('Enable private endpoint')
 param enablePrivateEndpoint bool
 
-@description('PostgreSQL subnet ID for VNet integration')
-param postgresSubnetId string
+@description('PostgreSQL subnet ID for VNet integration (optional)')
+param postgresSubnetId string = ''
 
-@description('Virtual Network ID')
-param vnetId string
+@description('Virtual Network ID (optional)')
+param vnetId string = ''
 
 @description('Enable zone redundancy')
 param enableZoneRedundancy bool
@@ -73,8 +73,7 @@ resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2023-03-01-pr
     network: enablePrivateEndpoint ? {
       delegatedSubnetResourceId: postgresSubnetId
       privateDnsZoneArmResourceId: privateDnsZone.id
-      // Temporarily enable public access during initialization, then disable it
-      publicNetworkAccess: allowAzureServicesAccess ? 'Enabled' : 'Disabled'
+      publicNetworkAccess: 'Disabled'
     } : {
       publicNetworkAccess: 'Enabled'
     }

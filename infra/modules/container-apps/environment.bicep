@@ -10,8 +10,8 @@ param location string
 @description('Tags to apply to the resource')
 param tags object
 
-@description('Infrastructure subnet ID for Container Apps')
-param infrastructureSubnetId string
+@description('Infrastructure subnet ID for Container Apps (optional)')
+param infrastructureSubnetId string = ''
 
 @description('Log Analytics workspace ID')
 param logAnalyticsWorkspaceId string
@@ -24,9 +24,9 @@ resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2023-05-01'
   location: location
   tags: tags
   properties: {
-    vnetConfiguration: {
+    vnetConfiguration: !empty(infrastructureSubnetId) ? {
       infrastructureSubnetId: infrastructureSubnetId
-    }
+    } : null
     appLogsConfiguration: {
       destination: 'log-analytics'
       logAnalyticsConfiguration: {
