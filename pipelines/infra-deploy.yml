@@ -190,7 +190,19 @@ stages:
                   inputs:
                     targetType: 'inline'
                     script: |
+                      # Configure git identity using the commit author or person who triggered the build
+                      # This provides proper audit trail and accountability
+                      COMMIT_EMAIL=$(git log -1 --pretty=format:'%ae')
+                      COMMIT_NAME=$(git log -1 --pretty=format:'%an')
+                      
+                      git config user.email "${COMMIT_EMAIL}"
+                      git config user.name "${COMMIT_NAME}"
+                      
+                      echo "Tagging deployment as: ${COMMIT_NAME} <${COMMIT_EMAIL}>"
+                      
+                      # Create and push tag
                       git tag -a "infra-dev-$(Build.BuildNumber)" -m "Infrastructure deployment to dev - $(Build.BuildNumber)"
+                      git push origin "infra-dev-$(Build.BuildNumber)"
                       echo "Tagged deployment: infra-dev-$(Build.BuildNumber)"
 
   # ==============================================================================
@@ -344,7 +356,20 @@ stages:
                   inputs:
                     targetType: 'inline'
                     script: |
+                      # Configure git identity using the commit author or person who triggered the build
+                      # This provides proper audit trail and accountability
+                      COMMIT_EMAIL=$(git log -1 --pretty=format:'%ae')
+                      COMMIT_NAME=$(git log -1 --pretty=format:'%an')
+                      
+                      git config user.email "${COMMIT_EMAIL}"
+                      git config user.name "${COMMIT_NAME}"
+                      
+                      echo "Tagging deployment as: ${COMMIT_NAME} <${COMMIT_EMAIL}>"
+                      
+                      # Create and push tag
                       git tag -a "infra-test-$(Build.BuildNumber)" -m "Infrastructure deployment to test - $(Build.BuildNumber)"
+                      git push origin "infra-test-$(Build.BuildNumber)"
+                      echo "Tagged deployment: infra-test-$(Build.BuildNumber)"
 
   # ==============================================================================
   # STAGE 5: What-If Analysis for Production Environment
@@ -494,7 +519,19 @@ stages:
                   inputs:
                     targetType: 'inline'
                     script: |
+                      # Configure git identity using the commit author or person who triggered the build
+                      # This provides proper audit trail and accountability
+                      COMMIT_EMAIL=$(git log -1 --pretty=format:'%ae')
+                      COMMIT_NAME=$(git log -1 --pretty=format:'%an')
+                      
+                      git config user.email "${COMMIT_EMAIL}"
+                      git config user.name "${COMMIT_NAME}"
+                      
+                      echo "Tagging deployment as: ${COMMIT_NAME} <${COMMIT_EMAIL}>"
+                      
+                      # Create and push tag
                       git tag -a "infra-prod-$(Build.BuildNumber)" -m "Infrastructure deployment to prod - $(Build.BuildNumber)"
+                      git push origin "infra-prod-$(Build.BuildNumber)"
                       echo "##vso[task.setvariable variable=DEPLOYMENT_TAG]infra-prod-$(Build.BuildNumber)"
 
                 - task: Bash@3
