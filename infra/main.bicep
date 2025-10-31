@@ -84,6 +84,9 @@ param enablePrivateEndpoints bool = environment == 'prod'
 @description('Enable zone redundancy (production only)')
 param enableZoneRedundancy bool = environment == 'prod'
 
+@description('Temporarily allow Azure services to access PostgreSQL (for deployment/initialization)')
+param allowAzureServicesAccess bool = false
+
 // ============================================================================
 // RESOURCE GROUP
 // ============================================================================
@@ -185,6 +188,7 @@ module database 'modules/database/postgres.bicep' = {
     vnetId: networking.outputs.vnetId
     enableZoneRedundancy: enableZoneRedundancy
     logAnalyticsWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
+    allowAzureServicesAccess: allowAzureServicesAccess
   }
 }
 

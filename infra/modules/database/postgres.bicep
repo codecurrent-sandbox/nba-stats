@@ -45,6 +45,9 @@ param logAnalyticsWorkspaceId string = ''
 @description('Database name')
 param databaseName string = 'nba_stats'
 
+@description('Allow Azure services temporarily (for deployment/initialization)')
+param allowAzureServicesAccess bool = false
+
 resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2023-03-01-preview' = {
   name: serverName
   location: location
@@ -91,8 +94,10 @@ resource database 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2023-03-0
   }
 }
 
-// Firewall rule to allow Azure services (if not using private endpoint)
-resource firewallRule 'Microsoft.DBforPostgreSQL/flexibleServers/firewallRules@2023-03-01-preview' = if (!enablePrivateEndpoint) {
+// Firewall rule to allow Azure services
+// For private endpoints: only enabled temporarily during deployment
+// For public access: always enabled
+resource firewallRule 'Microsoft.DBforPostgreSQL/flexibleServers/firewallRules@2023-03-01-preview' = if (!enablePrivateEndpoint || allowAzureServicesAccess) {
   parent: postgresServer
   name: 'AllowAllAzureServicesAndResourcesWithinAzureIps'
   properties: {
