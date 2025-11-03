@@ -70,7 +70,7 @@ stages:
                         --parameters location='$(location)' \
                         --parameters postgresAdminPassword='$(POSTGRES_ADMIN_PASSWORD)' \
                         --parameters nbaApiKey='$(NBA_API_KEY)' \
-                        --query '{postgresServerFqdn:properties.outputs.postgresServerFqdn.value,resourceGroupName:properties.outputs.resourceGroupName.value}' \
+                        --query '{postgresServerFqdn:properties.outputs.postgresServerFqdn.value,resourceGroupName:properties.outputs.resourceGroupName.value,containerRegistryName:properties.outputs.containerRegistryName.value,containerRegistryLoginServer:properties.outputs.containerRegistryLoginServer.value,apiUrl:properties.outputs.apiUrl.value}' \
                         --output json)
                       
                       # Save outputs to file
@@ -166,7 +166,7 @@ stages:
                         --parameters location='$(location)' \
                         --parameters postgresAdminPassword='$(POSTGRES_ADMIN_PASSWORD)' \
                         --parameters nbaApiKey='$(NBA_API_KEY)' \
-                        --query '{postgresServerFqdn:properties.outputs.postgresServerFqdn.value,resourceGroupName:properties.outputs.resourceGroupName.value}' \
+                        --query '{postgresServerFqdn:properties.outputs.postgresServerFqdn.value,resourceGroupName:properties.outputs.resourceGroupName.value,containerRegistryName:properties.outputs.containerRegistryName.value,containerRegistryLoginServer:properties.outputs.containerRegistryLoginServer.value,apiUrl:properties.outputs.apiUrl.value}' \
                         --output json)
                       
                       # Save outputs to file
@@ -260,7 +260,7 @@ stages:
                         --parameters location='$(location)' \
                         --parameters postgresAdminPassword='$(POSTGRES_ADMIN_PASSWORD)' \
                         --parameters nbaApiKey='$(NBA_API_KEY)' \
-                        --query '{postgresServerFqdn:properties.outputs.postgresServerFqdn.value,resourceGroupName:properties.outputs.resourceGroupName.value}' \
+                        --query '{postgresServerFqdn:properties.outputs.postgresServerFqdn.value,resourceGroupName:properties.outputs.resourceGroupName.value,containerRegistryName:properties.outputs.containerRegistryName.value,containerRegistryLoginServer:properties.outputs.containerRegistryLoginServer.value,apiUrl:properties.outputs.apiUrl.value}' \
                         --output json)
                       
                       # Save outputs to file

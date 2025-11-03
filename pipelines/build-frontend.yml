@@ -1,0 +1,359 @@
+# NBA Stats Frontend Build Pipeline
+# Builds the React frontend application and analyzes bundle metrics
+
+name: 'Frontend-Build-$(Date:yyyyMMdd)-$(Rev:r)'
+
+resources:
+  pipelines:
+    - pipeline: infraPipeline
+      source: 'NBA-Stats-Infra-Deploy'  # Name of the infrastructure pipeline
+      trigger: none  # Don't auto-trigger; this pipeline runs independently
+
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - frontend/**
+      - pipelines/build-frontend.yml
+
+pr:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - frontend/**
+      - pipelines/build-frontend.yml
+
+variables:
+  - name: nodeVersion
+    value: '20.x'
+  - name: workingDirectory
+    value: 'frontend'
+  - name: vmImage
+    value: 'ubuntu-latest'
+  - name: buildMode
+    value: 'production'
+  - name: imageName
+    value: 'nba-stats-frontend'
+  - name: dockerfilePath
+    value: 'frontend/Dockerfile'
+  - name: buildContext
+    value: 'frontend'
+
+stages:
+  # ==============================================================================
+  # STAGE 1: Prep - Setup environment and dependencies
+  # ==============================================================================
+  - stage: Prep
+    displayName: 'Prepare Build Environment'
+    jobs:
+      - job: PrepareEnvironment
+        displayName: 'Setup Node.js and Dependencies'
+        pool:
+          vmImage: $(vmImage)
+        steps:
+          - checkout: self
+            displayName: 'Checkout source code'
+
+          - task: NodeTool@0
+            displayName: 'Setup Node.js $(nodeVersion)'
+            inputs:
+              versionSpec: $(nodeVersion)
+
+          - task: Cache@2
+            displayName: 'Cache npm packages'
+            inputs:
+              key: 'npm | "$(Agent.OS)" | $(Build.SourcesDirectory)/frontend/package-lock.json'
+              path: $(Pipeline.Workspace)/.npm
+              restoreKeys: |
+                npm | "$(Agent.OS)"
+
+          - task: Bash@3
+            displayName: 'Install dependencies'
+            inputs:
+              targetType: 'inline'
+              workingDirectory: '$(Build.SourcesDirectory)/$(workingDirectory)'
+              script: |
+                npm ci --cache $(Pipeline.Workspace)/.npm --prefer-offline
+                echo "Dependencies installed successfully"
+
+  # ==============================================================================
+  # STAGE 2: Quality - Type checking and linting
+  # ==============================================================================
+  - stage: Quality
+    displayName: 'Code Quality Checks'
+    dependsOn: Prep
+    jobs:
+      - job: TypeCheck
+        displayName: 'TypeScript Type Checking'
+        pool:
+          vmImage: $(vmImage)
+        steps:
+          - checkout: self
+
+          - task: NodeTool@0
+            displayName: 'Setup Node.js $(nodeVersion)'
+            inputs:
+              versionSpec: $(nodeVersion)
+
+          - task: Cache@2
+            displayName: 'Restore npm cache'
+            inputs:
+              key: 'npm | "$(Agent.OS)" | $(Build.SourcesDirectory)/frontend/package-lock.json'
+              path: $(Pipeline.Workspace)/.npm
+
+          - task: Bash@3
+            displayName: 'Install dependencies'
+            inputs:
+              targetType: 'inline'
+              workingDirectory: '$(Build.SourcesDirectory)/$(workingDirectory)'
+              script: |
+                npm ci --cache $(Pipeline.Workspace)/.npm --prefer-offline
+
+          - task: Bash@3
+            displayName: 'Run TypeScript type check'
+            inputs:
+              targetType: 'inline'
+              workingDirectory: '$(Build.SourcesDirectory)/$(workingDirectory)'
+              script: |
+                echo "Running TypeScript type checking..."
+                npx tsc --noEmit
+                echo "Type checking completed successfully"
+
+      - job: Lint
+        displayName: 'Run ESLint'
+        pool:
+          vmImage: $(vmImage)
+        steps:
+          - checkout: self
+
+          - task: NodeTool@0
+            displayName: 'Setup Node.js $(nodeVersion)'
+            inputs:
+              versionSpec: $(nodeVersion)
+
+          - task: Cache@2
+            displayName: 'Restore npm cache'
+            inputs:
+              key: 'npm | "$(Agent.OS)" | $(Build.SourcesDirectory)/frontend/package-lock.json'
+              path: $(Pipeline.Workspace)/.npm
+
+          - task: Bash@3
+            displayName: 'Install dependencies'
+            inputs:
+              targetType: 'inline'
+              workingDirectory: '$(Build.SourcesDirectory)/$(workingDirectory)'
+              script: |
+                npm ci --cache $(Pipeline.Workspace)/.npm --prefer-offline
+
+          - task: Bash@3
+            displayName: 'Run ESLint'
+            inputs:
+              targetType: 'inline'
+              workingDirectory: '$(Build.SourcesDirectory)/$(workingDirectory)'
+              script: |
+                echo "Running ESLint validation..."
+                npm run lint
+                echo "ESLint validation completed successfully"
+
+  # ==============================================================================
+  # STAGE 3: Build - Docker image build
+  # ==============================================================================
+  - stage: Build
+    displayName: 'Build Docker Image'
+    dependsOn: Quality
+    jobs:
+      - job: BuildDockerImage
+        displayName: 'Build Docker Image'
+        pool:
+          vmImage: $(vmImage)
+        variables:
+          targetEnvironment: 'dev'
+        steps:
+          - checkout: self
+
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download infrastructure outputs'
+            continueOnError: true
+            inputs:
+              source: 'specific'
+              project: '$(System.TeamProject)'
+              pipeline: 'NBA-Stats-Infra-Deploy'
+              runVersion: 'latest'
+              artifact: 'deployment-$(targetEnvironment)'
+              path: '$(Pipeline.Workspace)/infra-outputs'
+
+          - task: Bash@3
+            displayName: 'Extract API URL and version info'
+            inputs:
+              targetType: 'inline'
+              script: |
+                # Get API URL
+                if [ -n "$(viteApiUrlOverride)" ]; then
+                  API_URL="$(viteApiUrlOverride)"
+                elif [ -f "$(Pipeline.Workspace)/infra-outputs/deployment-$(targetEnvironment).json" ]; then
+                  API_URL=$(cat $(Pipeline.Workspace)/infra-outputs/deployment-$(targetEnvironment).json | jq -r '.apiUrl // "https://api-placeholder.example.com"')
+                else
+                  API_URL="https://api-placeholder.example.com"
+                fi
+                
+                # Extract version from package.json
+                VERSION=$(cat $(Build.SourcesDirectory)/frontend/package.json | jq -r '.version')
+                SHORT_SHA=$(git rev-parse --short=7 HEAD)
+                FULL_SHA=$(git rev-parse HEAD)
+                IMAGE_TAG="${VERSION}-${SHORT_SHA}"
+                
+                echo "API URL: $API_URL"
+                echo "Package Version: $VERSION"
+                echo "Short SHA: $SHORT_SHA"
+                echo "Image Tag: $IMAGE_TAG"
+                
+                # Set pipeline variables
+                echo "##vso[task.setvariable variable=viteApiUrl]$API_URL"
+                echo "##vso[task.setvariable variable=packageVersion]$VERSION"
+                echo "##vso[task.setvariable variable=shortSha]$SHORT_SHA"
+                echo "##vso[task.setvariable variable=fullSha]$FULL_SHA"
+                echo "##vso[task.setvariable variable=imageTag]$IMAGE_TAG"
+
+          - task: Docker@2
+            displayName: 'Build Docker image'
+            inputs:
+              command: 'build'
+              Dockerfile: '$(dockerfilePath)'
+              buildContext: '$(buildContext)'
+              tags: |
+                $(imageTag)
+                latest
+              arguments: '--build-arg VITE_API_URL=$(viteApiUrl)'
+
+  # ==============================================================================
+  # STAGE 4: Publish - Push Docker image to ACR
+  # ==============================================================================
+  - stage: Publish
+    displayName: 'Publish to ACR'
+    dependsOn: Build
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - job: PushToACR
+        displayName: 'Push Docker Image to ACR'
+        pool:
+          vmImage: $(vmImage)
+        variables:
+          # ACR service connection name (set as pipeline variable)
+          acrServiceConnection: 'acr-nba-stats-dev'  # Update this to your service connection name
+          targetEnvironment: 'dev'
+        steps:
+          - checkout: self
+
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download infrastructure outputs'
+            continueOnError: true
+            inputs:
+              source: 'specific'
+              project: '$(System.TeamProject)'
+              pipeline: 'NBA-Stats-Infra-Deploy'
+              runVersion: 'latest'
+              artifact: 'deployment-$(targetEnvironment)'
+              path: '$(Pipeline.Workspace)/infra-outputs'
+
+          - task: Bash@3
+            displayName: 'Extract ACR and API details'
+            inputs:
+              targetType: 'inline'
+              script: |
+                # Check if infrastructure outputs are available
+                if [ -f "$(Pipeline.Workspace)/infra-outputs/deployment-$(targetEnvironment).json" ]; then
+                  # Read from deployment outputs
+                  ACR_NAME=$(cat $(Pipeline.Workspace)/infra-outputs/deployment-$(targetEnvironment).json | jq -r '.containerRegistryName')
+                  ACR_LOGIN_SERVER=$(cat $(Pipeline.Workspace)/infra-outputs/deployment-$(targetEnvironment).json | jq -r '.containerRegistryLoginServer')
+                  API_URL=$(cat $(Pipeline.Workspace)/infra-outputs/deployment-$(targetEnvironment).json | jq -r '.apiUrl // "https://api-placeholder.example.com"')
+                  echo "✅ Using ACR and API details from infrastructure deployment"
+                else
+                  # Fallback to pipeline variables (must be set manually)
+                  ACR_NAME="$(acrNameOverride)"
+                  ACR_LOGIN_SERVER="$(acrLoginServerOverride)"
+                  API_URL="$(viteApiUrlOverride)"
+                  echo "⚠️ Infrastructure outputs not found. Using manual pipeline variables."
+                  echo "   Set 'acrNameOverride', 'acrLoginServerOverride', and 'viteApiUrlOverride' if needed."
+                  
+                  if [ -z "$ACR_NAME" ]; then
+                    echo "❌ ERROR: ACR name not available. Either run infrastructure pipeline first or set acrNameOverride variable."
+                    exit 1
+                  fi
+                  
+                  if [ -z "$API_URL" ]; then
+                    API_URL="https://api-placeholder.example.com"
+                  fi
+                fi
+                
+                # Extract version info
+                VERSION=$(cat $(Build.SourcesDirectory)/frontend/package.json | jq -r '.version')
+                SHORT_SHA=$(git rev-parse --short=7 HEAD)
+                FULL_SHA=$(git rev-parse HEAD)
+                IMAGE_TAG="${VERSION}-${SHORT_SHA}"
+                
+                echo "Container Registry Name: $ACR_NAME"
+                echo "Container Registry Login Server: $ACR_LOGIN_SERVER"
+                echo "API URL: $API_URL"
+                echo "Image Tag: $IMAGE_TAG"
+                
+                # Set as pipeline variables for subsequent tasks
+                echo "##vso[task.setvariable variable=acrName]$ACR_NAME"
+                echo "##vso[task.setvariable variable=acrLoginServer]$ACR_LOGIN_SERVER"
+                echo "##vso[task.setvariable variable=viteApiUrl]$API_URL"
+                echo "##vso[task.setvariable variable=packageVersion]$VERSION"
+                echo "##vso[task.setvariable variable=shortSha]$SHORT_SHA"
+                echo "##vso[task.setvariable variable=fullSha]$FULL_SHA"
+                echo "##vso[task.setvariable variable=imageTag]$IMAGE_TAG"
+
+          - task: Docker@2
+            displayName: 'Build and push image to ACR'
+            inputs:
+              containerRegistry: '$(acrServiceConnection)'
+              repository: '$(imageName)'
+              command: 'buildAndPush'
+              Dockerfile: '$(dockerfilePath)'
+              buildContext: '$(buildContext)'
+              tags: |
+                $(imageTag)
+                latest
+              arguments: '--build-arg VITE_API_URL=$(viteApiUrl)'
+
+          - task: Bash@3
+            displayName: 'Publish build summary'
+            inputs:
+              targetType: 'inline'
+              script: |
+                echo "## 🐳 Docker Image Build Summary" >> $(Build.ArtifactStagingDirectory)/build-summary.md
+                echo "" >> $(Build.ArtifactStagingDirectory)/build-summary.md
+                echo "**Image Details:**" >> $(Build.ArtifactStagingDirectory)/build-summary.md
+                echo "- Image Name: \`$(imageName)\`" >> $(Build.ArtifactStagingDirectory)/build-summary.md
+                echo "- Version Tag: \`$(imageTag)\`" >> $(Build.ArtifactStagingDirectory)/build-summary.md
+                echo "- Package Version: \`$(packageVersion)\`" >> $(Build.ArtifactStagingDirectory)/build-summary.md
+                echo "- Git Commit (Short): \`$(shortSha)\`" >> $(Build.ArtifactStagingDirectory)/build-summary.md
+                echo "- Git Commit (Full): \`$(fullSha)\`" >> $(Build.ArtifactStagingDirectory)/build-summary.md
+                echo "- Registry: \`$(acrName).azurecr.io\`" >> $(Build.ArtifactStagingDirectory)/build-summary.md
+                echo "- Full Image Path: \`$(acrName).azurecr.io/$(imageName):$(imageTag)\`" >> $(Build.ArtifactStagingDirectory)/build-summary.md
+                echo "- API URL (baked in): \`$(viteApiUrl)\`" >> $(Build.ArtifactStagingDirectory)/build-summary.md
+                echo "" >> $(Build.ArtifactStagingDirectory)/build-summary.md
+                echo "**Build Information:**" >> $(Build.ArtifactStagingDirectory)/build-summary.md
+                echo "- Build Number: $(Build.BuildNumber)" >> $(Build.ArtifactStagingDirectory)/build-summary.md
+                echo "- Build ID: $(Build.BuildId)" >> $(Build.ArtifactStagingDirectory)/build-summary.md
+                echo "- Source Branch: $(Build.SourceBranch)" >> $(Build.ArtifactStagingDirectory)/build-summary.md
+                echo "- Timestamp: $(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> $(Build.ArtifactStagingDirectory)/build-summary.md
+                
+                # Upload as build summary
+                echo "##vso[task.uploadsummary]$(Build.ArtifactStagingDirectory)/build-summary.md"
+                
+                # Also display in logs
+                cat $(Build.ArtifactStagingDirectory)/build-summary.md
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish build summary artifact'
+            inputs:
+              targetPath: '$(Build.ArtifactStagingDirectory)/build-summary.md'
+              artifact: 'build-summary'
+              publishLocation: 'pipeline'
