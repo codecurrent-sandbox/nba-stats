@@ -27,6 +27,6 @@ param maxReplicas = 10
 // NBA API Key
 param nbaApiKey = ''
 
-// Feature Flags - Production uses high availability but keeps networking simple
+// Feature Flags - Production configuration simplified to match dev/test
 param enablePrivateEndpoints = false
-param enableZoneRedundancy = true
+param enableZoneRedundancy = false

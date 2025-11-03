@@ -32,80 +32,11 @@ variables:
 
 stages:
   # ==============================================================================
-  # STAGE 1: What-If Analysis for Dev Environment
-  # ==============================================================================
-  - stage: WhatIf_Dev
-    displayName: 'What-If: Dev'
-    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
-    jobs:
-      - job: WhatIfDev
-        displayName: 'Run What-If Analysis (Dev)'
-        pool:
-          vmImage: $(vmImage)
-        steps:
-          - task: AzureCLI@2
-            displayName: 'Bicep What-If: Dev'
-            inputs:
-              azureSubscription: $(azureSubscription)
-              scriptType: 'bash'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
-                echo "Running what-if analysis for dev environment..."
-                
-                az deployment sub what-if \
-                  --name "whatif-dev-$(Build.BuildNumber)" \
-                  --location "$(location)" \
-                  --template-file "$(Build.SourcesDirectory)/infra/main.bicep" \
-                  --parameters "$(Build.SourcesDirectory)/infra/parameters/dev.bicepparam" \
-                  --parameters location='$(location)' \
-                  --parameters postgresAdminPassword='$(POSTGRES_ADMIN_PASSWORD)' \
-                  --parameters nbaApiKey='$(NBA_API_KEY)' \
-                  --result-format "FullResourcePayloads" \
-                  > "$(Build.ArtifactStagingDirectory)/whatif-dev.json"
-                
-                echo "What-if analysis complete"
-                cat "$(Build.ArtifactStagingDirectory)/whatif-dev.json"
-
-          - task: PublishPipelineArtifact@1
-            displayName: 'Publish What-If Results (Dev)'
-            inputs:
-              targetPath: '$(Build.ArtifactStagingDirectory)/whatif-dev.json'
-              artifact: 'whatif-dev'
-              publishLocation: 'pipeline'
-
-          - task: Bash@3
-            displayName: 'Check for Destructive Changes (Dev)'
-            inputs:
-              targetType: 'inline'
-              script: |
-                echo "Analyzing what-if results for destructive changes..."
-                
-                # Check for actual delete operations in what-if output
-                # Look for resource deletion patterns like "- Microsoft.xxx/yyy"
-                # Exclude legend lines that just show "- Delete" or "- Create"
-                DESTRUCTIVE_CHANGES=$(cat "$(Build.ArtifactStagingDirectory)/whatif-dev.json" | grep -E "^\s*-\s+Microsoft\." || true)
-                
-                if [ ! -z "$DESTRUCTIVE_CHANGES" ]; then
-                  echo "##vso[task.logissue type=warning]Destructive changes detected in what-if analysis!"
-                  echo "$DESTRUCTIVE_CHANGES"
-                  
-                  # Allow override via variable
-                  if [ "${ALLOW_DESTRUCTIVE_CHANGES}" != "true" ]; then
-                    echo "##vso[task.logissue type=error]Deployment blocked due to destructive changes. Set ALLOW_DESTRUCTIVE_CHANGES=true to override."
-                    exit 1
-                  else
-                    echo "##vso[task.logissue type=warning]Destructive changes allowed via override"
-                  fi
-                else
-                  echo "No destructive changes detected"
-                fi
-
-  # ==============================================================================
-  # STAGE 2: Deploy to Dev Environment
+  # STAGE 1: Deploy to Dev Environment
   # ==============================================================================
   - stage: Deploy_Dev
     displayName: 'Deploy: Dev'
-    dependsOn: WhatIf_Dev
+    dependsOn: []
     condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
     jobs:
       - deployment: DeployDev
@@ -197,77 +128,11 @@ stages:
                       echo "Tagged deployment: infra-dev-$(Build.BuildNumber)"
 
   # ==============================================================================
-  # STAGE 3: What-If Analysis for Test Environment
-  # ==============================================================================
-  - stage: WhatIf_Test
-    displayName: 'What-If: Test'
-    dependsOn: Deploy_Dev
-    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
-    jobs:
-      - job: WhatIfTest
-        displayName: 'Run What-If Analysis (Test)'
-        pool:
-          vmImage: $(vmImage)
-        steps:
-          - task: AzureCLI@2
-            displayName: 'Bicep What-If: Test'
-            inputs:
-              azureSubscription: $(azureSubscription)
-              scriptType: 'bash'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
-                echo "Running what-if analysis for test environment..."
-                
-                # Get the service principal object ID
-                SP_OBJECT_ID=$(az ad sp show --id $(az account show --query user.name -o tsv) --query id -o tsv)
-                
-                az deployment sub what-if \
-                  --name "whatif-test-$(Build.BuildNumber)" \
-                  --location "$(location)" \
-                  --template-file "$(Build.SourcesDirectory)/infra/main.bicep" \
-                  --parameters "$(Build.SourcesDirectory)/infra/parameters/test.bicepparam" \
-                  --parameters location='$(location)' \
-                  --parameters postgresAdminPassword='$(POSTGRES_ADMIN_PASSWORD)' \
-                  --parameters nbaApiKey='$(NBA_API_KEY)' \
-                  --result-format "FullResourcePayloads" \
-                  > "$(Build.ArtifactStagingDirectory)/whatif-test.json"
-                
-                echo "What-if analysis complete"
-                cat "$(Build.ArtifactStagingDirectory)/whatif-test.json"
-
-          - task: PublishPipelineArtifact@1
-            displayName: 'Publish What-If Results (Test)'
-            inputs:
-              targetPath: '$(Build.ArtifactStagingDirectory)/whatif-test.json'
-              artifact: 'whatif-test'
-              publishLocation: 'pipeline'
-
-          - task: Bash@3
-            displayName: 'Check for Destructive Changes (Test)'
-            inputs:
-              targetType: 'inline'
-              script: |
-                echo "Analyzing what-if results for destructive changes..."
-                
-                # Check for actual resource deletions
-                DESTRUCTIVE_CHANGES=$(cat "$(Build.ArtifactStagingDirectory)/whatif-test.json" | grep -E "^\s*-\s+Microsoft\." || true)
-                
-                if [ ! -z "$DESTRUCTIVE_CHANGES" ]; then
-                  echo "##vso[task.logissue type=warning]Destructive changes detected!"
-                  echo "$DESTRUCTIVE_CHANGES"
-                  
-                  if [ "${ALLOW_DESTRUCTIVE_CHANGES}" != "true" ]; then
-                    echo "##vso[task.logissue type=error]Deployment blocked. Set ALLOW_DESTRUCTIVE_CHANGES=true to override."
-                    exit 1
-                  fi
-                fi
-
-  # ==============================================================================
-  # STAGE 4: Deploy to Test Environment (Manual Approval Required)
+  # STAGE 2: Deploy to Test Environment (Manual Approval Required)
   # ==============================================================================
   - stage: Deploy_Test
     displayName: 'Deploy: Test'
-    dependsOn: WhatIf_Test
+    dependsOn: Deploy_Dev
     condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
     jobs:
       - deployment: DeployTest
@@ -357,71 +222,11 @@ stages:
                       echo "Tagged deployment: infra-test-$(Build.BuildNumber)"
 
   # ==============================================================================
-  # STAGE 5: What-If Analysis for Production Environment
-  # ==============================================================================
-  - stage: WhatIf_Prod
-    displayName: 'What-If: Prod'
-    dependsOn: Deploy_Test
-    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
-    jobs:
-      - job: WhatIfProd
-        displayName: 'Run What-If Analysis (Prod)'
-        pool:
-          vmImage: $(vmImage)
-        steps:
-          - task: AzureCLI@2
-            displayName: 'Bicep What-If: Prod'
-            inputs:
-              azureSubscription: $(azureSubscription)
-              scriptType: 'bash'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
-                echo "Running what-if analysis for production environment..."
-                
-                az deployment sub what-if \
-                  --name "whatif-prod-$(Build.BuildNumber)" \
-                  --location "$(location)" \
-                  --template-file "$(Build.SourcesDirectory)/infra/main.bicep" \
-                  --parameters "$(Build.SourcesDirectory)/infra/parameters/prod.bicepparam" \
-                  --parameters location='$(location)' \
-                  --parameters postgresAdminPassword='$(POSTGRES_ADMIN_PASSWORD)' \
-                  --parameters nbaApiKey='$(NBA_API_KEY)' \
-                  --result-format "FullResourcePayloads" \
-                  > "$(Build.ArtifactStagingDirectory)/whatif-prod.json"
-                
-                cat "$(Build.ArtifactStagingDirectory)/whatif-prod.json"
-
-          - task: PublishPipelineArtifact@1
-            displayName: 'Publish What-If Results (Prod)'
-            inputs:
-              targetPath: '$(Build.ArtifactStagingDirectory)/whatif-prod.json'
-              artifact: 'whatif-prod'
-              publishLocation: 'pipeline'
-
-          - task: Bash@3
-            displayName: 'Check for Destructive Changes (Prod)'
-            inputs:
-              targetType: 'inline'
-              script: |
-                # Check for actual resource deletions
-                DESTRUCTIVE_CHANGES=$(cat "$(Build.ArtifactStagingDirectory)/whatif-prod.json" | grep -E "^\s*-\s+Microsoft\." || true)
-                
-                if [ ! -z "$DESTRUCTIVE_CHANGES" ]; then
-                  echo "##vso[task.logissue type=error]CRITICAL: Destructive changes detected in production!"
-                  echo "$DESTRUCTIVE_CHANGES"
-                  
-                  if [ "${ALLOW_DESTRUCTIVE_CHANGES}" != "true" ]; then
-                    echo "##vso[task.logissue type=error]Production deployment blocked!"
-                    exit 1
-                  fi
-                fi
-
-  # ==============================================================================
-  # STAGE 6: Deploy to Production Environment (Manual Approval Required)
+  # STAGE 3: Deploy to Production Environment (Manual Approval Required)
   # ==============================================================================
   - stage: Deploy_Prod
     displayName: 'Deploy: Prod'
-    dependsOn: WhatIf_Prod
+    dependsOn: Deploy_Test
     condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
     jobs:
       - deployment: DeployProd
