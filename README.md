@@ -10,7 +10,7 @@ A modern, cloud-native web application to display real-time NBA statistics with 
 ✅ **Automatic Data Sync** - First request fetches from BallDontLie and stores in DB, subsequent requests use cached data  
 ✅ **Real NBA Data** - Teams, Players, Games from the official BallDontLie API  
 ✅ **Cloud-Ready** - Fully automated Azure deployment with Bicep IaC and Azure DevOps pipelines  
-✅ **Azure Developer CLI** - One-command deployment with `azd up`  
+✅ **Multi-Environment** - Separate Dev, Test, and Production configurations  
 
 ## Architecture
 
@@ -88,61 +88,43 @@ The application will be available at:
 - **API**: http://localhost:3000/api/v1
 - **API Health Check**: http://localhost:3000/api/health
 
-### Azure Deployment (Azure Developer CLI)
+### Azure Deployment (Azure DevOps Pipeline)
 
-Deploy the entire application to Azure with a single command using [Azure Developer CLI (azd)](https://learn.microsoft.com/azure/developer/azure-developer-cli/overview).
+Deploy infrastructure to Azure using the automated Azure DevOps pipeline.
 
 #### Prerequisites
-- [Azure Developer CLI (azd)](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd)
-- Azure subscription
+- Azure DevOps organization and project
+- Azure subscription with service connection configured
 - **BallDontLie API Key** - Get yours at [https://www.balldontlie.io](https://www.balldontlie.io)
 
-#### Quick Deploy
+#### Setup Pipeline
 
-```bash
-# Login to Azure
-azd auth login
+1. **Configure Service Connection** in Azure DevOps:
+   - See [`infra/docs/SERVICE_CONNECTION.md`](infra/docs/SERVICE_CONNECTION.md) for detailed steps
 
-# Initialize environment (one-time setup)
-azd env new dev
-azd env set AZURE_LOCATION swedencentral
+2. **Set Pipeline Variables** (as secrets):
+   - `POSTGRES_ADMIN_PASSWORD` - PostgreSQL admin password
+   - `NBA_API_KEY` - Your BallDontLie API key
 
-# Deploy everything
-azd up
-```
+3. **Run the Pipeline:**
+   - Pipeline triggers automatically on commits to `main` branch affecting `/infra/**`
+   - Or run manually from Azure DevOps UI
 
-The `azd up` command will prompt you for:
-- Azure subscription (if not already set)
-- NBA API key
-- PostgreSQL admin password
+#### Pipeline Stages
 
-**💡 Tip:** Always run `azd env set AZURE_LOCATION <region>` after creating a new environment to avoid deployment errors.
+The pipeline deploys to three environments in sequence:
 
-That's it! `azd up` will:
-1. ✅ Create Azure resources (Container Apps, PostgreSQL, Key Vault, etc.)
-2. ✅ Build and deploy your containers
-3. ✅ Configure networking and security
-4. ✅ Initialize the database
-5. ✅ Provide you with the application URL
+1. **Deploy Dev** - Automatically deploys to development (no approval needed)
+2. **Deploy Test** - Requires manual approval, deploys to test environment
+3. **Deploy Prod** - Requires manual approval, deploys to production environment
 
-#### Other azd Commands
+Each stage:
+- ✅ Provisions Azure resources using Bicep
+- ✅ Initializes PostgreSQL database schema
+- ✅ Tags deployment for tracking
+- ✅ Publishes deployment outputs as artifacts
 
-```bash
-# Deploy code changes only (no infrastructure changes)
-azd deploy
-
-# Provision infrastructure only (no deployment)
-azd provision
-
-# Monitor application
-azd monitor
-
-# View application endpoints
-azd show
-
-# Clean up all Azure resources
-azd down
-```
+**Pipeline Location:** `/pipelines/infra-deploy.yml`
 
 ### Manual Azure Deployment (Bicep)
 
@@ -233,36 +215,28 @@ nba-stats/
 │   └── docs/             # Infrastructure documentation
 ├── pipelines/            # Azure DevOps CI/CD pipelines
 │   └── infra-deploy.yml  # Infrastructure deployment pipeline
-├── azure.yaml            # Azure Developer CLI configuration
 ├── docker-compose.yml    # Local development setup
 └── tests/                # Test suites
 ```
 
 ## Deployment Options
 
-This project supports three deployment approaches:
+This project supports two deployment approaches:
 
-### 1. 🚀 Azure Developer CLI (Recommended for Quick Starts)
-```bash
-azd up  # One command to deploy everything
-```
-- **Best for**: Getting started quickly, proof of concepts
-- **Pros**: Simplest, fastest, handles everything
-- **Cons**: Less control over individual steps
-
-### 2. 🏗️ Azure DevOps Pipelines (Recommended for Production)
-- **Best for**: Team environments, production workloads
-- **Pros**: Full CI/CD, approval gates, what-if analysis, audit trail
+### 1. 🏗️ Azure DevOps Pipeline (Recommended)
+- **Best for**: Team environments, production workloads, CI/CD
+- **Pros**: Full automation, approval gates, multi-environment, audit trail
 - **Cons**: Requires Azure DevOps setup
 - **Location**: See `pipelines/infra-deploy.yml`
+- **Documentation**: See [`infra/README.md`](infra/README.md)
 
-### 3. 🔧 Manual Bicep Deployment
+### 2. 🔧 Manual Bicep Deployment
 ```bash
 cd infra && ./scripts/deploy.sh dev
 ```
 - **Best for**: Learning, troubleshooting, custom workflows
-- **Pros**: Full control, educational
-- **Cons**: Manual process, no automation
+- **Pros**: Full control, educational, step-by-step
+- **Cons**: Manual process, requires Azure CLI knowledge
 
 ## Azure Architecture
 
@@ -398,7 +372,6 @@ npm run dev
 - **Azure Container Registry** - Container image storage
 - **Azure Key Vault** - Secrets management
 - **Azure DevOps** - CI/CD pipelines with approval gates
-- **Azure Developer CLI (azd)** - Simplified deployment workflow
 - **Docker** - Containerization for local dev and Azure deployment
 - **Nginx** - Production web server for frontend
 
@@ -456,10 +429,9 @@ docker-compose down
 
 **Azure:**
 ```bash
-# Remove all Azure resources
-azd down
-
-# Or use Azure Portal to delete resource group
+# Use Azure Portal to delete resource group
+# Or use Azure CLI:
+az group delete --name rg-nba-stats-dev --yes
 ```
 
 ## Troubleshooting
@@ -472,7 +444,7 @@ azd down
 
 **No Data Showing**
 - **Local**: Check that Docker containers are running: `docker-compose ps`
-- **Azure**: Check Container Apps logs in Azure Portal or via `azd monitor`
+- **Azure**: Check Container Apps logs in Azure Portal
 - View API logs: `docker-compose logs api` (local) or Azure Portal (cloud)
 - Restart containers: `docker-compose restart` (local)
 
@@ -495,13 +467,10 @@ azd down
 - If you get a "VaultAlreadyExists" error, the Key Vault is soft-deleted
 - Dev/Test environments: Purge protection is disabled, run `az keyvault purge --name <vault-name>`
 - Production: Purge protection is enabled (7-day retention), wait or use a different name
-- **Missing location error**: If you get "location property must be specified", run: `azd env set AZURE_LOCATION swedencentral`
-- To clean up and redeploy: `azd down` then `az keyvault purge --name <vault-name>` then `azd up`
 
 ## Documentation
 
 - **[Infrastructure Guide](infra/README.md)** - Detailed Bicep and deployment documentation
-- **[Azure Developer CLI Integration](infra/docs/AZD_INTEGRATION.md)** - azd deployment guide
 - **[Service Connection Setup](infra/docs/SERVICE_CONNECTION.md)** - Azure DevOps configuration
 - **[Frontend Architecture](frontend/ARCHITECTURE.md)** - React application structure
 - **[API Schemas](services/api/schemas.md)** - API data models and validation
