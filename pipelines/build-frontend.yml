@@ -236,15 +236,15 @@ stages:
     displayName: 'Publish to ACR'
     dependsOn: Build
     condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    variables:
+      # ACR service connection name - can be overridden via pipeline variable
+      acrServiceConnection: 'acr-nba-stats-dev'
+      targetEnvironment: 'dev'
     jobs:
       - job: PushToACR
         displayName: 'Push Docker Image to ACR'
         pool:
           vmImage: $(vmImage)
-        variables:
-          # ACR service connection name (set as pipeline variable)
-          acrServiceConnection: 'acr-nba-stats-dev'  # Update this to your service connection name
-          targetEnvironment: 'dev'
         steps:
           - checkout: self
 
