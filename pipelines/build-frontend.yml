@@ -230,89 +230,56 @@ stages:
               arguments: '--build-arg VITE_API_URL=$(viteApiUrl)'
 
   # ==============================================================================
-  # STAGE 4: Publish - Push Docker image to ACR
+  # STAGE 4: Publish to Dev ACR
   # ==============================================================================
-  - stage: Publish
-    displayName: 'Publish to ACR'
+  - stage: Publish_Dev
+    displayName: 'Publish: Dev'
     dependsOn: Build
     condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
-    variables:
-      # ACR service connection name - can be overridden via pipeline variable
-      acrServiceConnection: 'acr-nba-stats-dev'
-      targetEnvironment: 'dev'
     jobs:
       - job: PushToACR
-        displayName: 'Push Docker Image to ACR'
+        displayName: 'Push to Dev ACR'
         pool:
           vmImage: $(vmImage)
         steps:
           - checkout: self
 
           - task: DownloadPipelineArtifact@2
-            displayName: 'Download infrastructure outputs'
+            displayName: 'Download infrastructure outputs (Dev)'
             continueOnError: true
             inputs:
               source: 'specific'
               project: '$(System.TeamProject)'
               pipeline: 'NBA-Stats-Infra-Deploy'
               runVersion: 'latest'
-              artifact: 'deployment-$(targetEnvironment)'
+              artifact: 'deployment-dev'
               path: '$(Pipeline.Workspace)/infra-outputs'
 
           - task: Bash@3
-            displayName: 'Extract ACR and API details'
+            displayName: 'Extract API URL and generate version tags'
             inputs:
               targetType: 'inline'
               script: |
-                # Check if infrastructure outputs are available
-                if [ -f "$(Pipeline.Workspace)/infra-outputs/deployment-$(targetEnvironment).json" ]; then
-                  # Read from deployment outputs
-                  ACR_NAME=$(cat $(Pipeline.Workspace)/infra-outputs/deployment-$(targetEnvironment).json | jq -r '.containerRegistryName')
-                  ACR_LOGIN_SERVER=$(cat $(Pipeline.Workspace)/infra-outputs/deployment-$(targetEnvironment).json | jq -r '.containerRegistryLoginServer')
-                  API_URL=$(cat $(Pipeline.Workspace)/infra-outputs/deployment-$(targetEnvironment).json | jq -r '.apiUrl // "https://api-placeholder.example.com"')
-                  echo "✅ Using ACR and API details from infrastructure deployment"
+                # Get API URL
+                if [ -f "$(Pipeline.Workspace)/infra-outputs/deployment-dev.json" ]; then
+                  API_URL=$(cat $(Pipeline.Workspace)/infra-outputs/deployment-dev.json | jq -r '.apiUrl // "https://api-placeholder.example.com"')
                 else
-                  # Fallback to pipeline variables (must be set manually)
-                  ACR_NAME="$(acrNameOverride)"
-                  ACR_LOGIN_SERVER="$(acrLoginServerOverride)"
-                  API_URL="$(viteApiUrlOverride)"
-                  echo "⚠️ Infrastructure outputs not found. Using manual pipeline variables."
-                  echo "   Set 'acrNameOverride', 'acrLoginServerOverride', and 'viteApiUrlOverride' if needed."
-                  
-                  if [ -z "$ACR_NAME" ]; then
-                    echo "❌ ERROR: ACR name not available. Either run infrastructure pipeline first or set acrNameOverride variable."
-                    exit 1
-                  fi
-                  
-                  if [ -z "$API_URL" ]; then
-                    API_URL="https://api-placeholder.example.com"
-                  fi
+                  API_URL="https://api-placeholder.example.com"
                 fi
                 
-                # Extract version info
+                # Generate version tags
                 VERSION=$(cat $(Build.SourcesDirectory)/frontend/package.json | jq -r '.version')
                 SHORT_SHA=$(git rev-parse --short=7 HEAD)
-                FULL_SHA=$(git rev-parse HEAD)
                 IMAGE_TAG="${VERSION}-${SHORT_SHA}"
                 
-                echo "Container Registry Name: $ACR_NAME"
-                echo "Container Registry Login Server: $ACR_LOGIN_SERVER"
-                echo "API URL: $API_URL"
-                echo "Image Tag: $IMAGE_TAG"
-                
-                # Set as pipeline variables for subsequent tasks
-                echo "##vso[task.setvariable variable=acrName]$ACR_NAME"
-                echo "##vso[task.setvariable variable=acrLoginServer]$ACR_LOGIN_SERVER"
                 echo "##vso[task.setvariable variable=viteApiUrl]$API_URL"
-                echo "##vso[task.setvariable variable=packageVersion]$VERSION"
-                echo "##vso[task.setvariable variable=shortSha]$SHORT_SHA"
-                echo "##vso[task.setvariable variable=fullSha]$FULL_SHA"
                 echo "##vso[task.setvariable variable=imageTag]$IMAGE_TAG"
+                echo "API URL: $API_URL, Tag: $IMAGE_TAG"
 
           - task: Docker@2
-            displayName: 'Build and push image to ACR'
+            displayName: 'Build and push to Dev ACR'
             inputs:
-              containerRegistry: '$(acrServiceConnection)'
+              containerRegistry: 'acr-nba-stats-dev'
               repository: '$(imageName)'
               command: 'buildAndPush'
               Dockerfile: '$(dockerfilePath)'
@@ -322,38 +289,122 @@ stages:
                 latest
               arguments: '--build-arg VITE_API_URL=$(viteApiUrl)'
 
+  # ==============================================================================
+  # STAGE 5: Publish to Test ACR
+  # ==============================================================================
+  - stage: Publish_Test
+    displayName: 'Publish: Test'
+    dependsOn: Publish_Dev
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - job: PushToACR
+        displayName: 'Push to Test ACR'
+        pool:
+          vmImage: $(vmImage)
+        steps:
+          - checkout: self
+
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download infrastructure outputs (Test)'
+            continueOnError: true
+            inputs:
+              source: 'specific'
+              project: '$(System.TeamProject)'
+              pipeline: 'NBA-Stats-Infra-Deploy'
+              runVersion: 'latest'
+              artifact: 'deployment-test'
+              path: '$(Pipeline.Workspace)/infra-outputs'
+
           - task: Bash@3
-            displayName: 'Publish build summary'
+            displayName: 'Extract API URL and generate version tags'
             inputs:
               targetType: 'inline'
               script: |
-                echo "## 🐳 Docker Image Build Summary" >> $(Build.ArtifactStagingDirectory)/build-summary.md
-                echo "" >> $(Build.ArtifactStagingDirectory)/build-summary.md
-                echo "**Image Details:**" >> $(Build.ArtifactStagingDirectory)/build-summary.md
-                echo "- Image Name: \`$(imageName)\`" >> $(Build.ArtifactStagingDirectory)/build-summary.md
-                echo "- Version Tag: \`$(imageTag)\`" >> $(Build.ArtifactStagingDirectory)/build-summary.md
-                echo "- Package Version: \`$(packageVersion)\`" >> $(Build.ArtifactStagingDirectory)/build-summary.md
-                echo "- Git Commit (Short): \`$(shortSha)\`" >> $(Build.ArtifactStagingDirectory)/build-summary.md
-                echo "- Git Commit (Full): \`$(fullSha)\`" >> $(Build.ArtifactStagingDirectory)/build-summary.md
-                echo "- Registry: \`$(acrName).azurecr.io\`" >> $(Build.ArtifactStagingDirectory)/build-summary.md
-                echo "- Full Image Path: \`$(acrName).azurecr.io/$(imageName):$(imageTag)\`" >> $(Build.ArtifactStagingDirectory)/build-summary.md
-                echo "- API URL (baked in): \`$(viteApiUrl)\`" >> $(Build.ArtifactStagingDirectory)/build-summary.md
-                echo "" >> $(Build.ArtifactStagingDirectory)/build-summary.md
-                echo "**Build Information:**" >> $(Build.ArtifactStagingDirectory)/build-summary.md
-                echo "- Build Number: $(Build.BuildNumber)" >> $(Build.ArtifactStagingDirectory)/build-summary.md
-                echo "- Build ID: $(Build.BuildId)" >> $(Build.ArtifactStagingDirectory)/build-summary.md
-                echo "- Source Branch: $(Build.SourceBranch)" >> $(Build.ArtifactStagingDirectory)/build-summary.md
-                echo "- Timestamp: $(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> $(Build.ArtifactStagingDirectory)/build-summary.md
+                # Get API URL
+                if [ -f "$(Pipeline.Workspace)/infra-outputs/deployment-test.json" ]; then
+                  API_URL=$(cat $(Pipeline.Workspace)/infra-outputs/deployment-test.json | jq -r '.apiUrl // "https://api-placeholder.example.com"')
+                else
+                  API_URL="https://api-placeholder.example.com"
+                fi
                 
-                # Upload as build summary
-                echo "##vso[task.uploadsummary]$(Build.ArtifactStagingDirectory)/build-summary.md"
+                # Generate version tags
+                VERSION=$(cat $(Build.SourcesDirectory)/frontend/package.json | jq -r '.version')
+                SHORT_SHA=$(git rev-parse --short=7 HEAD)
+                IMAGE_TAG="${VERSION}-${SHORT_SHA}"
                 
-                # Also display in logs
-                cat $(Build.ArtifactStagingDirectory)/build-summary.md
+                echo "##vso[task.setvariable variable=viteApiUrl]$API_URL"
+                echo "##vso[task.setvariable variable=imageTag]$IMAGE_TAG"
+                echo "API URL: $API_URL, Tag: $IMAGE_TAG"
 
-          - task: PublishPipelineArtifact@1
-            displayName: 'Publish build summary artifact'
+          - task: Docker@2
+            displayName: 'Build and push to Test ACR'
             inputs:
-              targetPath: '$(Build.ArtifactStagingDirectory)/build-summary.md'
-              artifact: 'build-summary'
-              publishLocation: 'pipeline'
+              containerRegistry: 'acr-nba-stats-test'
+              repository: '$(imageName)'
+              command: 'buildAndPush'
+              Dockerfile: '$(dockerfilePath)'
+              buildContext: '$(buildContext)'
+              tags: |
+                $(imageTag)
+                latest
+              arguments: '--build-arg VITE_API_URL=$(viteApiUrl)'
+
+  # ==============================================================================
+  # STAGE 6: Publish to Prod ACR
+  # ==============================================================================
+  - stage: Publish_Prod
+    displayName: 'Publish: Prod'
+    dependsOn: Publish_Test
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - job: PushToACR
+        displayName: 'Push to Prod ACR'
+        pool:
+          vmImage: $(vmImage)
+        steps:
+          - checkout: self
+
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download infrastructure outputs (Prod)'
+            continueOnError: true
+            inputs:
+              source: 'specific'
+              project: '$(System.TeamProject)'
+              pipeline: 'NBA-Stats-Infra-Deploy'
+              runVersion: 'latest'
+              artifact: 'deployment-prod'
+              path: '$(Pipeline.Workspace)/infra-outputs'
+
+          - task: Bash@3
+            displayName: 'Extract API URL and generate version tags'
+            inputs:
+              targetType: 'inline'
+              script: |
+                # Get API URL
+                if [ -f "$(Pipeline.Workspace)/infra-outputs/deployment-prod.json" ]; then
+                  API_URL=$(cat $(Pipeline.Workspace)/infra-outputs/deployment-prod.json | jq -r '.apiUrl // "https://api-placeholder.example.com"')
+                else
+                  API_URL="https://api-placeholder.example.com"
+                fi
+                
+                # Generate version tags
+                VERSION=$(cat $(Build.SourcesDirectory)/frontend/package.json | jq -r '.version')
+                SHORT_SHA=$(git rev-parse --short=7 HEAD)
+                IMAGE_TAG="${VERSION}-${SHORT_SHA}"
+                
+                echo "##vso[task.setvariable variable=viteApiUrl]$API_URL"
+                echo "##vso[task.setvariable variable=imageTag]$IMAGE_TAG"
+                echo "API URL: $API_URL, Tag: $IMAGE_TAG"
+
+          - task: Docker@2
+            displayName: 'Build and push to Prod ACR'
+            inputs:
+              containerRegistry: 'acr-nba-stats-prod'
+              repository: '$(imageName)'
+              command: 'buildAndPush'
+              Dockerfile: '$(dockerfilePath)'
+              buildContext: '$(buildContext)'
+              tags: |
+                $(imageTag)
+                latest
+              arguments: '--build-arg VITE_API_URL=$(viteApiUrl)'
