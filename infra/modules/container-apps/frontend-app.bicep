@@ -51,7 +51,7 @@ resource frontendApp 'Microsoft.App/containerApps@2023-05-01' = {
       activeRevisionsMode: 'Single'
       ingress: {
         external: true
-        targetPort: 80
+        targetPort: 3001
         transport: 'http'
         allowInsecure: false
         traffic: [
@@ -97,8 +97,8 @@ resource frontendApp 'Microsoft.App/containerApps@2023-05-01' = {
             {
               type: 'Liveness'
               httpGet: {
-                path: '/'
-                port: 80
+                path: '/health'
+                port: 3001
               }
               initialDelaySeconds: 10
               periodSeconds: 10
@@ -106,8 +106,8 @@ resource frontendApp 'Microsoft.App/containerApps@2023-05-01' = {
             {
               type: 'Readiness'
               httpGet: {
-                path: '/'
-                port: 80
+                path: '/ready'
+                port: 3001
               }
               initialDelaySeconds: 5
               periodSeconds: 5

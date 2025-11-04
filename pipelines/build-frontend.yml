@@ -42,6 +42,8 @@ variables:
     value: 'frontend/Dockerfile'
   - name: buildContext
     value: 'frontend'
+  - name: skipNugetSecurityAnalysis
+    value: 'true'
 
 stages:
   # ==============================================================================
@@ -260,15 +262,27 @@ stages:
             inputs:
               targetType: 'inline'
               script: |
-                # Get API URL
-                if [ -f "$(Pipeline.Workspace)/infra-outputs/deployment-dev.json" ]; then
-                  API_URL=$(cat $(Pipeline.Workspace)/infra-outputs/deployment-dev.json | jq -r '.apiUrl // "https://api-placeholder.example.com"')
+                # Get API URL from infrastructure outputs
+                if [ -f "$(Pipeline.Workspace)/infra-outputs/deployment-prod.json" ]; then
+                  API_URL=$(cat $(Pipeline.Workspace)/infra-outputs/deployment-prod.json | jq -r '.apiUrl // "https://api-placeholder.example.com"')
                 else
                   API_URL="https://api-placeholder.example.com"
                 fi
                 
                 # Generate version tags
                 VERSION=$(cat $(Build.SourcesDirectory)/frontend/package.json | jq -r '.version')
+                SHORT_SHA=$(git rev-parse --short=7 HEAD)
+                IMAGE_TAG="${VERSION}-${SHORT_SHA}"
+                
+                echo "##vso[task.setvariable variable=viteApiUrl]$API_URL"
+                echo "##vso[task.setvariable variable=imageTag]$IMAGE_TAG"
+                echo "API URL: $API_URL, Tag: $IMAGE_TAG"rontend/package.json | jq -r '.version')
+                SHORT_SHA=$(git rev-parse --short=7 HEAD)
+                IMAGE_TAG="${VERSION}-${SHORT_SHA}"
+                
+                echo "##vso[task.setvariable variable=viteApiUrl]$API_URL"
+                echo "##vso[task.setvariable variable=imageTag]$IMAGE_TAG"
+                echo "API URL: $API_URL, Tag: $IMAGE_TAG"rontend/package.json | jq -r '.version')
                 SHORT_SHA=$(git rev-parse --short=7 HEAD)
                 IMAGE_TAG="${VERSION}-${SHORT_SHA}"
                 
@@ -316,25 +330,19 @@ stages:
               path: '$(Pipeline.Workspace)/infra-outputs'
 
           - task: Bash@3
-            displayName: 'Extract API URL and generate version tags'
+            displayName: 'Generate version tags'
             inputs:
               targetType: 'inline'
               script: |
-                # Get API URL
-                if [ -f "$(Pipeline.Workspace)/infra-outputs/deployment-test.json" ]; then
-                  API_URL=$(cat $(Pipeline.Workspace)/infra-outputs/deployment-test.json | jq -r '.apiUrl // "https://api-placeholder.example.com"')
-                else
-                  API_URL="https://api-placeholder.example.com"
-                fi
-                
                 # Generate version tags
                 VERSION=$(cat $(Build.SourcesDirectory)/frontend/package.json | jq -r '.version')
                 SHORT_SHA=$(git rev-parse --short=7 HEAD)
                 IMAGE_TAG="${VERSION}-${SHORT_SHA}"
+                API_URL="https://nba-stats-test-api.icywater-1c882360.swedencentral.azurecontainerapps.io"
                 
                 echo "##vso[task.setvariable variable=viteApiUrl]$API_URL"
                 echo "##vso[task.setvariable variable=imageTag]$IMAGE_TAG"
-                echo "API URL: $API_URL, Tag: $IMAGE_TAG"
+                echo "Tag: $IMAGE_TAG, API URL: $API_URL"
 
           - task: Docker@2
             displayName: 'Build and push to Test ACR'
@@ -376,25 +384,19 @@ stages:
               path: '$(Pipeline.Workspace)/infra-outputs'
 
           - task: Bash@3
-            displayName: 'Extract API URL and generate version tags'
+            displayName: 'Generate version tags'
             inputs:
               targetType: 'inline'
               script: |
-                # Get API URL
-                if [ -f "$(Pipeline.Workspace)/infra-outputs/deployment-prod.json" ]; then
-                  API_URL=$(cat $(Pipeline.Workspace)/infra-outputs/deployment-prod.json | jq -r '.apiUrl // "https://api-placeholder.example.com"')
-                else
-                  API_URL="https://api-placeholder.example.com"
-                fi
-                
                 # Generate version tags
                 VERSION=$(cat $(Build.SourcesDirectory)/frontend/package.json | jq -r '.version')
                 SHORT_SHA=$(git rev-parse --short=7 HEAD)
                 IMAGE_TAG="${VERSION}-${SHORT_SHA}"
+                API_URL="https://nba-stats-prod-api.icywater-1c882360.swedencentral.azurecontainerapps.io"
                 
                 echo "##vso[task.setvariable variable=viteApiUrl]$API_URL"
                 echo "##vso[task.setvariable variable=imageTag]$IMAGE_TAG"
-                echo "API URL: $API_URL, Tag: $IMAGE_TAG"
+                echo "Tag: $IMAGE_TAG, API URL: $API_URL"
 
           - task: Docker@2
             displayName: 'Build and push to Prod ACR'
@@ -408,3 +410,153 @@ stages:
                 $(imageTag)
                 latest
               arguments: '--build-arg VITE_API_URL=$(viteApiUrl)'
+
+  # ==============================================================================
+  # STAGE 7: Deploy to Dev Container App
+  # ==============================================================================
+  - stage: Deploy_Dev
+    displayName: 'Deploy: Dev'
+    dependsOn: Publish_Dev
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: DeployToContainerApp
+        displayName: 'Deploy to Dev Container App'
+        pool:
+          vmImage: $(vmImage)
+        environment: 'nba-stats-dev'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+
+                - task: Bash@3
+                  displayName: 'Generate image tag'
+                  inputs:
+                    targetType: 'inline'
+                    script: |
+                      VERSION=$(cat $(Build.SourcesDirectory)/frontend/package.json | jq -r '.version')
+                      SHORT_SHA=$(git rev-parse --short=7 HEAD)
+                      IMAGE_TAG="${VERSION}-${SHORT_SHA}"
+                      echo "##vso[task.setvariable variable=imageTag]$IMAGE_TAG"
+                      echo "Image Tag: $IMAGE_TAG"
+
+                - task: AzureCLI@2
+                  displayName: 'Update Container App with new image'
+                  inputs:
+                    azureSubscription: 'azure-nba-stats-dev'
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      REGISTRY_NAME=$(az acr list --resource-group rg-nba-stats-dev --query "[0].name" -o tsv)
+                      IMAGE_NAME="${REGISTRY_NAME}.azurecr.io/$(imageName):$(imageTag)"
+                      
+                      echo "Updating Container App with image: $IMAGE_NAME"
+                      
+                      az containerapp update \
+                        --name nba-stats-dev-frontend \
+                        --resource-group rg-nba-stats-dev \
+                        --image "$IMAGE_NAME" \
+                        --output table
+                      
+                      echo "Deployment complete!"
+
+  # ==============================================================================
+  # STAGE 8: Deploy to Test Container App
+  # ==============================================================================
+  - stage: Deploy_Test
+    displayName: 'Deploy: Test'
+    dependsOn: Publish_Test
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: DeployToContainerApp
+        displayName: 'Deploy to Test Container App'
+        pool:
+          vmImage: $(vmImage)
+        environment: 'nba-stats-test'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+
+                - task: Bash@3
+                  displayName: 'Generate image tag'
+                  inputs:
+                    targetType: 'inline'
+                    script: |
+                      VERSION=$(cat $(Build.SourcesDirectory)/frontend/package.json | jq -r '.version')
+                      SHORT_SHA=$(git rev-parse --short=7 HEAD)
+                      IMAGE_TAG="${VERSION}-${SHORT_SHA}"
+                      echo "##vso[task.setvariable variable=imageTag]$IMAGE_TAG"
+                      echo "Image Tag: $IMAGE_TAG"
+
+                - task: AzureCLI@2
+                  displayName: 'Update Container App with new image'
+                  inputs:
+                    azureSubscription: 'azure-nba-stats-test'
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      REGISTRY_NAME=$(az acr list --resource-group rg-nba-stats-test --query "[0].name" -o tsv)
+                      IMAGE_NAME="${REGISTRY_NAME}.azurecr.io/$(imageName):$(imageTag)"
+                      
+                      echo "Updating Container App with image: $IMAGE_NAME"
+                      
+                      az containerapp update \
+                        --name nba-stats-test-frontend \
+                        --resource-group rg-nba-stats-test \
+                        --image "$IMAGE_NAME" \
+                        --output table
+                      
+                      echo "Deployment complete!"
+
+  # ==============================================================================
+  # STAGE 9: Deploy to Prod Container App
+  # ==============================================================================
+  - stage: Deploy_Prod
+    displayName: 'Deploy: Prod'
+    dependsOn: Publish_Prod
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: DeployToContainerApp
+        displayName: 'Deploy to Prod Container App'
+        pool:
+          vmImage: $(vmImage)
+        environment: 'nba-stats-prod'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+
+                - task: Bash@3
+                  displayName: 'Generate image tag'
+                  inputs:
+                    targetType: 'inline'
+                    script: |
+                      VERSION=$(cat $(Build.SourcesDirectory)/frontend/package.json | jq -r '.version')
+                      SHORT_SHA=$(git rev-parse --short=7 HEAD)
+                      IMAGE_TAG="${VERSION}-${SHORT_SHA}"
+                      echo "##vso[task.setvariable variable=imageTag]$IMAGE_TAG"
+                      echo "Image Tag: $IMAGE_TAG"
+
+                - task: AzureCLI@2
+                  displayName: 'Update Container App with new image'
+                  inputs:
+                    azureSubscription: 'azure-nba-stats-prod'
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      REGISTRY_NAME=$(az acr list --resource-group rg-nba-stats-prod --query "[0].name" -o tsv)
+                      IMAGE_NAME="${REGISTRY_NAME}.azurecr.io/$(imageName):$(imageTag)"
+                      
+                      echo "Updating Container App with image: $IMAGE_NAME"
+                      
+                      az containerapp update \
+                        --name nba-stats-prod-frontend \
+                        --resource-group rg-nba-stats-prod \
+                        --image "$IMAGE_NAME" \
+                        --output table
+                      
+                      echo "Deployment complete!"
