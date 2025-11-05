@@ -494,7 +494,7 @@ stages:
                 - task: AzureCLI@2
                   displayName: 'Update Container App with new image'
                   inputs:
-                    azureSubscription: 'acr-nba-stats-test'
+                    azureSubscription: 'azure-nba-stats-connection'
                     scriptType: 'bash'
                     scriptLocation: 'inlineScript'
                     inlineScript: |
@@ -544,7 +544,7 @@ stages:
                 - task: AzureCLI@2
                   displayName: 'Update Container App with new image'
                   inputs:
-                    azureSubscription: 'acr-nba-stats-prod'
+                    azureSubscription: 'azure-nba-stats-connection'
                     scriptType: 'bash'
                     scriptLocation: 'inlineScript'
                     inlineScript: |
