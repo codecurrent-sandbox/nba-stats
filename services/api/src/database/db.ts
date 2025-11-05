@@ -1,12 +1,26 @@
 import pkg from 'pg';
 const { Pool } = pkg;
 
+// Parse DATABASE_URL if provided, otherwise use individual env vars
+const getDatabaseConfig = () => {
+  if (process.env.DATABASE_URL) {
+    return {
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    };
+  }
+  
+  return {
+    host: process.env.DB_HOST || 'db',
+    port: parseInt(process.env.DB_PORT || '5432'),
+    database: process.env.DB_NAME || 'nba_stats',
+    user: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || 'postgres',
+  };
+};
+
 const pool = new Pool({
-  host: process.env.DB_HOST || 'db',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME || 'nba_stats',
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'postgres',
+  ...getDatabaseConfig(),
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,

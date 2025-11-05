@@ -7,7 +7,10 @@ resources:
   pipelines:
     - pipeline: infraPipeline
       source: 'NBA-Stats-Infra-Deploy'  # Name of the infrastructure pipeline
-      trigger: none  # Don't auto-trigger; this pipeline runs independently
+      trigger:
+        branches:
+          include:
+            - main
 
 trigger:
   branches:
