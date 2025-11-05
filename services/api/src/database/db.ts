@@ -4,12 +4,14 @@ const { Pool } = pkg;
 // Parse DATABASE_URL if provided, otherwise use individual env vars
 const getDatabaseConfig = () => {
   if (process.env.DATABASE_URL) {
+    console.log('📊 Using DATABASE_URL for database connection');
     return {
       connectionString: process.env.DATABASE_URL,
       ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
     };
   }
   
+  console.log('📊 Using individual DB env vars for database connection');
   return {
     host: process.env.DB_HOST || 'db',
     port: parseInt(process.env.DB_PORT || '5432'),
@@ -19,8 +21,11 @@ const getDatabaseConfig = () => {
   };
 };
 
+const config = getDatabaseConfig();
+console.log('📊 Database config:', { ...config, connectionString: config.connectionString ? '[REDACTED]' : undefined });
+
 const pool = new Pool({
-  ...getDatabaseConfig(),
+  ...config,
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,
