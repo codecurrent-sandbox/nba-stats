@@ -216,7 +216,7 @@ module apiApp 'modules/container-apps/api-app.bicep' = {
     containerRegistryName: containerRegistryName
     managedIdentityId: identity.outputs.id
     appInsightsConnectionString: monitoring.outputs.appInsightsConnectionString
-    postgresConnectionString: 'Host=${database.outputs.serverFqdn};Database=nba_stats;Username=${postgresAdminUsername};Password=${postgresAdminPassword};SSL Mode=Require'
+    postgresConnectionString: 'postgresql://${postgresAdminUsername}:${postgresAdminPassword}@${database.outputs.serverFqdn}:5432/nba_stats?sslmode=require'
     nbaApiKeySecretUri: ''
     nbaApiKey: nbaApiKey
     minReplicas: minReplicas
