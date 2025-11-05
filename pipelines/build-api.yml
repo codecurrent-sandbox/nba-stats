@@ -326,6 +326,31 @@ stages:
                       echo "Image Tag: $IMAGE_TAG"
 
                 - task: AzureCLI@2
+                  displayName: 'Update Database Connection String Secret'
+                  inputs:
+                    azureSubscription: 'azure-nba-stats-connection'
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      # Get PostgreSQL server FQDN
+                      POSTGRES_FQDN=$(az postgres flexible-server list \
+                        --resource-group rg-nba-stats-dev \
+                        --query "[0].fullyQualifiedDomainName" -o tsv)
+                      
+                      echo "PostgreSQL Server: $POSTGRES_FQDN"
+                      
+                      # Update the connection string secret with the correct password
+                      CONNECTION_STRING="postgresql://nbastatsadmin:$(POSTGRES_ADMIN_PASSWORD)@${POSTGRES_FQDN}:5432/nba_stats?sslmode=require"
+                      
+                      az containerapp secret set \
+                        --name nba-stats-dev-api \
+                        --resource-group rg-nba-stats-dev \
+                        --secrets "postgres-connection-string=${CONNECTION_STRING}" \
+                        --output none
+                      
+                      echo "Database connection string secret updated successfully"
+
+                - task: AzureCLI@2
                   displayName: 'Update Container App with new image'
                   inputs:
                     azureSubscription: 'azure-nba-stats-connection'
@@ -376,6 +401,31 @@ stages:
                       echo "Image Tag: $IMAGE_TAG"
 
                 - task: AzureCLI@2
+                  displayName: 'Update Database Connection String Secret'
+                  inputs:
+                    azureSubscription: 'azure-nba-stats-connection'
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      # Get PostgreSQL server FQDN
+                      POSTGRES_FQDN=$(az postgres flexible-server list \
+                        --resource-group rg-nba-stats-test \
+                        --query "[0].fullyQualifiedDomainName" -o tsv)
+                      
+                      echo "PostgreSQL Server: $POSTGRES_FQDN"
+                      
+                      # Update the connection string secret with the correct password
+                      CONNECTION_STRING="postgresql://nbastatsadmin:$(POSTGRES_ADMIN_PASSWORD)@${POSTGRES_FQDN}:5432/nba_stats?sslmode=require"
+                      
+                      az containerapp secret set \
+                        --name nba-stats-test-api \
+                        --resource-group rg-nba-stats-test \
+                        --secrets "postgres-connection-string=${CONNECTION_STRING}" \
+                        --output none
+                      
+                      echo "Database connection string secret updated successfully"
+
+                - task: AzureCLI@2
                   displayName: 'Update Container App with new image'
                   inputs:
                     azureSubscription: 'azure-nba-stats-connection'
@@ -424,6 +474,31 @@ stages:
                       IMAGE_TAG="${VERSION}-${SHORT_SHA}"
                       echo "##vso[task.setvariable variable=imageTag]$IMAGE_TAG"
                       echo "Image Tag: $IMAGE_TAG"
+
+                - task: AzureCLI@2
+                  displayName: 'Update Database Connection String Secret'
+                  inputs:
+                    azureSubscription: 'azure-nba-stats-connection'
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      # Get PostgreSQL server FQDN
+                      POSTGRES_FQDN=$(az postgres flexible-server list \
+                        --resource-group rg-nba-stats-prod \
+                        --query "[0].fullyQualifiedDomainName" -o tsv)
+                      
+                      echo "PostgreSQL Server: $POSTGRES_FQDN"
+                      
+                      # Update the connection string secret with the correct password
+                      CONNECTION_STRING="postgresql://nbastatsadmin:$(POSTGRES_ADMIN_PASSWORD)@${POSTGRES_FQDN}:5432/nba_stats?sslmode=require"
+                      
+                      az containerapp secret set \
+                        --name nba-stats-prod-api \
+                        --resource-group rg-nba-stats-prod \
+                        --secrets "postgres-connection-string=${CONNECTION_STRING}" \
+                        --output none
+                      
+                      echo "Database connection string secret updated successfully"
 
                 - task: AzureCLI@2
                   displayName: 'Update Container App with new image'
