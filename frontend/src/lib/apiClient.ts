@@ -10,7 +10,42 @@ import type {
 import { logger } from '../logging/logger';
 import { cacheManager, CacheKeyBuilder } from './cache';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const deriveRuntimeApiUrl = (): string | undefined => {
+  if (typeof window === 'undefined') {
+    return undefined;
+  }
+
+  const { protocol, host, hostname } = window.location;
+
+  if (!hostname || hostname === 'localhost') {
+    return undefined;
+  }
+
+  if (hostname.includes('-frontend')) {
+    // Container Apps expose frontend/API on sibling hosts, so swap the suffix to target the API
+    const apiHostname = hostname.replace('-frontend', '-api');
+    const apiHost = host.replace(hostname, apiHostname);
+    return `${protocol}//${apiHost}/api`;
+  }
+
+  return `${protocol}//${host}/api`;
+};
+
+const resolveApiBaseUrl = (): string => {
+  const envValue = import.meta.env.VITE_API_URL?.trim();
+  if (envValue) {
+    return envValue;
+  }
+
+  const runtimeValue = deriveRuntimeApiUrl();
+  if (runtimeValue) {
+    return runtimeValue;
+  }
+
+  return 'http://localhost:3000/api';
+};
+
+const API_BASE_URL = resolveApiBaseUrl();
 const DEFAULT_TIMEOUT = 10000;
 const DEFAULT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
