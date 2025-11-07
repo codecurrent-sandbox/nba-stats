@@ -257,13 +257,17 @@ export class BallDontLieAdapter {
           id: game.home_team.id.toString(),
           name: game.home_team.name,
           abbreviation: game.home_team.abbreviation,
-          city: game.home_team.city
+          city: game.home_team.city,
+          conference: game.home_team.conference,
+          division: game.home_team.division
         },
         awayTeam: {
           id: game.visitor_team.id.toString(),
           name: game.visitor_team.name,
           abbreviation: game.visitor_team.abbreviation,
-          city: game.visitor_team.city
+          city: game.visitor_team.city,
+          conference: game.visitor_team.conference,
+          division: game.visitor_team.division
         },
         homeScore: game.home_team_score,
         awayScore: game.visitor_team_score
@@ -302,13 +306,17 @@ export class BallDontLieAdapter {
           id: game.home_team.id.toString(),
           name: game.home_team.name,
           abbreviation: game.home_team.abbreviation,
-          city: game.home_team.city
+          city: game.home_team.city,
+          conference: game.home_team.conference,
+          division: game.home_team.division
         },
         awayTeam: {
           id: game.visitor_team.id.toString(),
           name: game.visitor_team.name,
           abbreviation: game.visitor_team.abbreviation,
-          city: game.visitor_team.city
+          city: game.visitor_team.city,
+          conference: game.visitor_team.conference,
+          division: game.visitor_team.division
         },
         homeScore: game.home_team_score,
         awayScore: game.visitor_team_score

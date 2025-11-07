@@ -173,9 +173,50 @@ app.get('/api/v1/players/:id', async (req, res, next) => {
 app.get('/api/v1/teams', async (req, res, next) => {
   try {
     // Try database first
-    const dbTeams = await repository.getAllTeams();
+    let dbTeams = await repository.getAllTeams();
     
     if (dbTeams && dbTeams.length > 0) {
+      const needsEnrichment = dbTeams.some(team => !team.conference || !team.logo_url || !team.full_name);
+
+      if (needsEnrichment) {
+        try {
+          const externalTeams = await ballDontLieAdapter.getTeams();
+          const externalById = new Map(externalTeams.map(team => [parseInt(team.id), team]));
+
+          const teamsToUpdate = dbTeams
+            .map(existing => {
+              const match = externalById.get(existing.id);
+              if (!match) {
+                return null;
+              }
+
+              const shouldUpdate = !existing.conference || !existing.full_name || !existing.logo_url;
+              if (!shouldUpdate) {
+                return null;
+              }
+
+              return {
+                id: parseInt(match.id),
+                name: match.name,
+                full_name: match.fullName,
+                abbreviation: match.abbreviation,
+                city: match.city,
+                conference: match.conference,
+                division: match.division,
+                logo_url: getTeamLogoUrl(match.abbreviation)
+              };
+            })
+            .filter((team) => team !== null);
+
+          if (teamsToUpdate.length > 0) {
+            await repository.upsertTeams(teamsToUpdate);
+            dbTeams = await repository.getAllTeams();
+          }
+        } catch (error) {
+          console.warn('Failed to enrich team metadata:', error);
+        }
+      }
+
       const teams = dbTeams.map(t => ({
         id: t.id.toString(),
         name: t.name,
