@@ -10,6 +10,69 @@ import type {
 import { logger } from '../logging/logger';
 import { cacheManager, CacheKeyBuilder } from './cache';
 
+const isLocalHostname = (hostname?: string): boolean => {
+  if (!hostname) {
+    return true;
+  }
+
+  const normalized = hostname.toLowerCase();
+  return (
+    normalized === 'localhost' ||
+    normalized === '127.0.0.1' ||
+    normalized === '0.0.0.0' ||
+    normalized === '[::1]' ||
+    normalized.endsWith('.local')
+  );
+};
+
+const sanitizeEnvUrl = (value: string | undefined): string | undefined => {
+  if (!value) {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.toLowerCase() === 'undefined' || trimmed.toLowerCase() === 'null') {
+    return undefined;
+  }
+
+  return trimmed;
+};
+
+const shouldIgnoreEnvUrl = (value: string, isRunningLocally: boolean): boolean => {
+  const lowered = value.toLowerCase();
+  if (lowered.includes('placeholder')) {
+    return true;
+  }
+
+  try {
+    const parsed = new URL(value);
+    if (!isRunningLocally && isLocalHostname(parsed.hostname)) {
+      return true;
+    }
+  } catch {
+    return true;
+  }
+
+  return false;
+};
+
+const ensureApiPath = (value: string): string => {
+  try {
+    const parsed = new URL(value);
+    const cleanPath = parsed.pathname?.replace(/\/+$/, '') ?? '';
+
+    if (!cleanPath || cleanPath === '/') {
+      parsed.pathname = '/api';
+    }
+
+    parsed.search = '';
+    parsed.hash = '';
+    return parsed.toString().replace(/\/$/, '');
+  } catch {
+    return value;
+  }
+};
+
 const deriveRuntimeApiUrl = (): string | undefined => {
   if (typeof window === 'undefined') {
     return undefined;
@@ -32,14 +95,21 @@ const deriveRuntimeApiUrl = (): string | undefined => {
 };
 
 const resolveApiBaseUrl = (): string => {
-  const envValue = import.meta.env.VITE_API_URL?.trim();
-  if (envValue) {
-    return envValue;
+  const envValue = sanitizeEnvUrl(import.meta.env.VITE_API_URL);
+  const isBrowser = typeof window !== 'undefined';
+  const isRunningLocally = isBrowser ? isLocalHostname(window.location.hostname) : true;
+
+  if (envValue && !shouldIgnoreEnvUrl(envValue, isRunningLocally)) {
+    return ensureApiPath(envValue);
   }
 
   const runtimeValue = deriveRuntimeApiUrl();
   if (runtimeValue) {
-    return runtimeValue;
+    return ensureApiPath(runtimeValue);
+  }
+
+  if (envValue) {
+    return ensureApiPath(envValue);
   }
 
   return 'http://localhost:3000/api';

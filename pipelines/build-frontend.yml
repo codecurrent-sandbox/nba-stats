@@ -194,30 +194,52 @@ stages:
               artifact: 'deployment-$(targetEnvironment)'
               path: '$(Pipeline.Workspace)/infra-outputs'
 
-          - task: Bash@3
-            displayName: 'Extract API URL and version info'
+          - task: AzureCLI@2
+            displayName: 'Resolve API URL and build metadata'
             inputs:
-              targetType: 'inline'
-              script: |
-                # Get API URL
-                if [ -f "$(Pipeline.Workspace)/infra-outputs/deployment-$(targetEnvironment).json" ]; then
-                  API_URL=$(cat $(Pipeline.Workspace)/infra-outputs/deployment-$(targetEnvironment).json | jq -r '.apiUrl // "https://api-placeholder.example.com"')
-                else
-                  API_URL="https://api-placeholder.example.com"
+              azureSubscription: 'azure-nba-stats-connection'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                set -euo pipefail
+
+                TARGET_ENV='$(targetEnvironment)'
+                ARTIFACT_PATH="$(Pipeline.Workspace)/infra-outputs/deployment-${TARGET_ENV}.json"
+
+                API_HOST=""
+                if [ -f "$ARTIFACT_PATH" ]; then
+                  API_HOST=$(jq -r '.apiUrl // empty' "$ARTIFACT_PATH")
+                  if [ "$API_HOST" = "null" ]; then
+                    API_HOST=""
+                  fi
                 fi
-                
-                # Extract version from package.json
-                VERSION=$(cat $(Build.SourcesDirectory)/frontend/package.json | jq -r '.version')
+
+                if [ -z "$API_HOST" ]; then
+                  RESOURCE_GROUP="rg-nba-stats-${TARGET_ENV}"
+                  APP_NAME="nba-stats-${TARGET_ENV}-api"
+                  FQDN=$(az containerapp show --name "$APP_NAME" --resource-group "$RESOURCE_GROUP" --query 'properties.configuration.ingress.fqdn' -o tsv 2>/dev/null || true)
+                  if [ -n "$FQDN" ]; then
+                    API_HOST="https://${FQDN}"
+                  fi
+                fi
+
+                if [ -z "$API_HOST" ]; then
+                  echo "Unable to resolve API endpoint for environment '$TARGET_ENV'." >&2
+                  exit 1
+                fi
+
+                API_URL="${API_HOST%/}/api"
+
+                VERSION=$(jq -r '.version' "$(Build.SourcesDirectory)/frontend/package.json")
                 SHORT_SHA=$(git rev-parse --short=7 HEAD)
                 FULL_SHA=$(git rev-parse HEAD)
                 IMAGE_TAG="${VERSION}-${SHORT_SHA}"
-                
-                echo "API URL: $API_URL"
+
+                echo "Resolved API URL: $API_URL"
                 echo "Package Version: $VERSION"
                 echo "Short SHA: $SHORT_SHA"
                 echo "Image Tag: $IMAGE_TAG"
-                
-                # Set pipeline variables
+
                 echo "##vso[task.setvariable variable=viteApiUrl]$API_URL"
                 echo "##vso[task.setvariable variable=packageVersion]$VERSION"
                 echo "##vso[task.setvariable variable=shortSha]$SHORT_SHA"
@@ -247,6 +269,8 @@ stages:
         displayName: 'Push to Dev ACR'
         pool:
           vmImage: $(vmImage)
+        variables:
+          targetEnvironment: 'dev'
         steps:
           - checkout: self
 
@@ -261,26 +285,51 @@ stages:
               artifact: 'deployment-dev'
               path: '$(Pipeline.Workspace)/infra-outputs'
 
-          - task: Bash@3
-            displayName: 'Extract API URL and generate version tags'
+          - task: AzureCLI@2
+            displayName: 'Resolve Dev API URL and image tag'
             inputs:
-              targetType: 'inline'
-              script: |
-                # Get API URL from infrastructure outputs
-                if [ -f "$(Pipeline.Workspace)/infra-outputs/deployment-dev.json" ]; then
-                  API_URL=$(cat $(Pipeline.Workspace)/infra-outputs/deployment-dev.json | jq -r '.apiUrl // "https://api-placeholder.example.com"')
-                else
-                  API_URL="https://api-placeholder.example.com"
+              azureSubscription: 'azure-nba-stats-connection'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                set -euo pipefail
+
+                TARGET_ENV='$(targetEnvironment)'
+                ARTIFACT_PATH="$(Pipeline.Workspace)/infra-outputs/deployment-${TARGET_ENV}.json"
+
+                API_HOST=""
+                if [ -f "$ARTIFACT_PATH" ]; then
+                  API_HOST=$(jq -r '.apiUrl // empty' "$ARTIFACT_PATH")
+                  if [ "$API_HOST" = "null" ]; then
+                    API_HOST=""
+                  fi
                 fi
-                
-                # Generate version tags
-                VERSION=$(cat $(Build.SourcesDirectory)/frontend/package.json | jq -r '.version')
+
+                if [ -z "$API_HOST" ]; then
+                  RESOURCE_GROUP="rg-nba-stats-${TARGET_ENV}"
+                  APP_NAME="nba-stats-${TARGET_ENV}-api"
+                  FQDN=$(az containerapp show --name "$APP_NAME" --resource-group "$RESOURCE_GROUP" --query 'properties.configuration.ingress.fqdn' -o tsv 2>/dev/null || true)
+                  if [ -n "$FQDN" ]; then
+                    API_HOST="https://${FQDN}"
+                  fi
+                fi
+
+                if [ -z "$API_HOST" ]; then
+                  echo "Unable to resolve API endpoint for environment '$TARGET_ENV'." >&2
+                  exit 1
+                fi
+
+                API_URL="${API_HOST%/}/api"
+
+                VERSION=$(jq -r '.version' "$(Build.SourcesDirectory)/frontend/package.json")
                 SHORT_SHA=$(git rev-parse --short=7 HEAD)
                 IMAGE_TAG="${VERSION}-${SHORT_SHA}"
-                
+
+                echo "Resolved API URL: $API_URL"
+                echo "Image Tag: $IMAGE_TAG"
+
                 echo "##vso[task.setvariable variable=viteApiUrl]$API_URL"
                 echo "##vso[task.setvariable variable=imageTag]$IMAGE_TAG"
-                echo "API URL: $API_URL, Tag: $IMAGE_TAG"
 
           - task: Docker@2
             displayName: 'Build and push to Dev ACR'
@@ -307,6 +356,8 @@ stages:
         displayName: 'Push to Test ACR'
         pool:
           vmImage: $(vmImage)
+        variables:
+          targetEnvironment: 'test'
         steps:
           - checkout: self
 
@@ -321,20 +372,51 @@ stages:
               artifact: 'deployment-test'
               path: '$(Pipeline.Workspace)/infra-outputs'
 
-          - task: Bash@3
-            displayName: 'Generate version tags'
+          - task: AzureCLI@2
+            displayName: 'Resolve Test API URL and image tag'
             inputs:
-              targetType: 'inline'
-              script: |
-                # Generate version tags
-                VERSION=$(cat $(Build.SourcesDirectory)/frontend/package.json | jq -r '.version')
+              azureSubscription: 'azure-nba-stats-connection'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                set -euo pipefail
+
+                TARGET_ENV='$(targetEnvironment)'
+                ARTIFACT_PATH="$(Pipeline.Workspace)/infra-outputs/deployment-${TARGET_ENV}.json"
+
+                API_HOST=""
+                if [ -f "$ARTIFACT_PATH" ]; then
+                  API_HOST=$(jq -r '.apiUrl // empty' "$ARTIFACT_PATH")
+                  if [ "$API_HOST" = "null" ]; then
+                    API_HOST=""
+                  fi
+                fi
+
+                if [ -z "$API_HOST" ]; then
+                  RESOURCE_GROUP="rg-nba-stats-${TARGET_ENV}"
+                  APP_NAME="nba-stats-${TARGET_ENV}-api"
+                  FQDN=$(az containerapp show --name "$APP_NAME" --resource-group "$RESOURCE_GROUP" --query 'properties.configuration.ingress.fqdn' -o tsv 2>/dev/null || true)
+                  if [ -n "$FQDN" ]; then
+                    API_HOST="https://${FQDN}"
+                  fi
+                fi
+
+                if [ -z "$API_HOST" ]; then
+                  echo "Unable to resolve API endpoint for environment '$TARGET_ENV'." >&2
+                  exit 1
+                fi
+
+                API_URL="${API_HOST%/}/api"
+
+                VERSION=$(jq -r '.version' "$(Build.SourcesDirectory)/frontend/package.json")
                 SHORT_SHA=$(git rev-parse --short=7 HEAD)
                 IMAGE_TAG="${VERSION}-${SHORT_SHA}"
-                API_URL="https://nba-stats-test-api.icywater-1c882360.swedencentral.azurecontainerapps.io"
-                
+
+                echo "Resolved API URL: $API_URL"
+                echo "Image Tag: $IMAGE_TAG"
+
                 echo "##vso[task.setvariable variable=viteApiUrl]$API_URL"
                 echo "##vso[task.setvariable variable=imageTag]$IMAGE_TAG"
-                echo "Tag: $IMAGE_TAG, API URL: $API_URL"
 
           - task: Docker@2
             displayName: 'Build and push to Test ACR'
@@ -361,6 +443,8 @@ stages:
         displayName: 'Push to Prod ACR'
         pool:
           vmImage: $(vmImage)
+        variables:
+          targetEnvironment: 'prod'
         steps:
           - checkout: self
 
@@ -375,20 +459,51 @@ stages:
               artifact: 'deployment-prod'
               path: '$(Pipeline.Workspace)/infra-outputs'
 
-          - task: Bash@3
-            displayName: 'Generate version tags'
+          - task: AzureCLI@2
+            displayName: 'Resolve Prod API URL and image tag'
             inputs:
-              targetType: 'inline'
-              script: |
-                # Generate version tags
-                VERSION=$(cat $(Build.SourcesDirectory)/frontend/package.json | jq -r '.version')
+              azureSubscription: 'azure-nba-stats-connection'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                set -euo pipefail
+
+                TARGET_ENV='$(targetEnvironment)'
+                ARTIFACT_PATH="$(Pipeline.Workspace)/infra-outputs/deployment-${TARGET_ENV}.json"
+
+                API_HOST=""
+                if [ -f "$ARTIFACT_PATH" ]; then
+                  API_HOST=$(jq -r '.apiUrl // empty' "$ARTIFACT_PATH")
+                  if [ "$API_HOST" = "null" ]; then
+                    API_HOST=""
+                  fi
+                fi
+
+                if [ -z "$API_HOST" ]; then
+                  RESOURCE_GROUP="rg-nba-stats-${TARGET_ENV}"
+                  APP_NAME="nba-stats-${TARGET_ENV}-api"
+                  FQDN=$(az containerapp show --name "$APP_NAME" --resource-group "$RESOURCE_GROUP" --query 'properties.configuration.ingress.fqdn' -o tsv 2>/dev/null || true)
+                  if [ -n "$FQDN" ]; then
+                    API_HOST="https://${FQDN}"
+                  fi
+                fi
+
+                if [ -z "$API_HOST" ]; then
+                  echo "Unable to resolve API endpoint for environment '$TARGET_ENV'." >&2
+                  exit 1
+                fi
+
+                API_URL="${API_HOST%/}/api"
+
+                VERSION=$(jq -r '.version' "$(Build.SourcesDirectory)/frontend/package.json")
                 SHORT_SHA=$(git rev-parse --short=7 HEAD)
                 IMAGE_TAG="${VERSION}-${SHORT_SHA}"
-                API_URL="https://nba-stats-prod-api.icywater-1c882360.swedencentral.azurecontainerapps.io"
-                
+
+                echo "Resolved API URL: $API_URL"
+                echo "Image Tag: $IMAGE_TAG"
+
                 echo "##vso[task.setvariable variable=viteApiUrl]$API_URL"
                 echo "##vso[task.setvariable variable=imageTag]$IMAGE_TAG"
-                echo "Tag: $IMAGE_TAG, API URL: $API_URL"
 
           - task: Docker@2
             displayName: 'Build and push to Prod ACR'
