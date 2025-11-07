@@ -1,8 +1,8 @@
 # Multi-stage build for React frontend
 FROM node:20-alpine AS builder
 
-# Accept build argument for API URL
-ARG VITE_API_URL=http://localhost:3000/api
+# Accept build argument for API URL (optional)
+ARG VITE_API_URL
 ENV VITE_API_URL=$VITE_API_URL
 
 WORKDIR /build
@@ -11,8 +11,8 @@ RUN npm ci
 
 # Copy source and build
 COPY . .
-# Ensure Vite picks up the runtime API endpoint during the production build
-RUN echo "VITE_API_URL=$VITE_API_URL" > .env.production
+# Ensure Vite picks up the runtime API endpoint during the production build when supplied
+RUN if [ -n "$VITE_API_URL" ]; then echo "VITE_API_URL=$VITE_API_URL" > .env.production; fi
 RUN npm run build
 
 # Production stage with nginx

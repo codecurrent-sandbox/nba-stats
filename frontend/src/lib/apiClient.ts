@@ -10,6 +10,10 @@ import type {
 import { logger } from '../logging/logger';
 import { cacheManager, CacheKeyBuilder } from './cache';
 
+const LOCAL_DEV_HOST = '127.0.0.1';
+const LOCAL_DEV_PORT = '3000';
+const API_PATHNAME = '/api';
+
 const isLocalHostname = (hostname?: string): boolean => {
   if (!hostname) {
     return true;
@@ -62,7 +66,7 @@ const ensureApiPath = (value: string): string => {
     const cleanPath = parsed.pathname?.replace(/\/+$/, '') ?? '';
 
     if (!cleanPath || cleanPath === '/') {
-      parsed.pathname = '/api';
+      parsed.pathname = API_PATHNAME;
     }
 
     parsed.search = '';
@@ -88,10 +92,28 @@ const deriveRuntimeApiUrl = (): string | undefined => {
     // Container Apps expose frontend/API on sibling hosts, so swap the suffix to target the API
     const apiHostname = hostname.replace('-frontend', '-api');
     const apiHost = host.replace(hostname, apiHostname);
-    return `${protocol}//${apiHost}/api`;
+    return `${protocol}//${apiHost}${API_PATHNAME}`;
   }
 
-  return `${protocol}//${host}/api`;
+  return `${protocol}//${host}${API_PATHNAME}`;
+};
+
+const buildLocalDevUrl = (protocol?: string, hostname?: string): string => {
+  const proposedProtocol = protocol && protocol.length > 0 ? protocol : 'http:';
+  const normalizedProtocol = proposedProtocol.endsWith(':') ? proposedProtocol : `${proposedProtocol}:`;
+  const normalizedHost = hostname && hostname.length > 0 ? hostname : LOCAL_DEV_HOST;
+  return `${normalizedProtocol}//${normalizedHost}:${LOCAL_DEV_PORT}${API_PATHNAME}`;
+};
+
+const deriveLocalFallbackUrl = (): string => {
+  if (typeof window !== 'undefined') {
+    const { protocol, hostname } = window.location;
+    if (hostname && isLocalHostname(hostname)) {
+      return buildLocalDevUrl(protocol, hostname);
+    }
+  }
+
+  return buildLocalDevUrl();
 };
 
 const resolveApiBaseUrl = (): string => {
@@ -112,7 +134,7 @@ const resolveApiBaseUrl = (): string => {
     return ensureApiPath(envValue);
   }
 
-  return 'http://localhost:3000/api';
+  return ensureApiPath(deriveLocalFallbackUrl());
 };
 
 const API_BASE_URL = resolveApiBaseUrl();
