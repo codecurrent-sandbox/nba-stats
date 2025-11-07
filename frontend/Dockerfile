@@ -11,6 +11,8 @@ RUN npm ci
 
 # Copy source and build
 COPY . .
+# Ensure Vite picks up the runtime API endpoint during the production build
+RUN echo "VITE_API_URL=$VITE_API_URL" > .env.production
 RUN npm run build
 
 # Production stage with nginx
