@@ -304,15 +304,17 @@ describe('Rate Limit Middleware', () => {
     });
 
     it('should work the same as rateLimitMiddleware', () => {
+      // Use unique counter to avoid interference with other tests
+      testCounter++;
       const limiter = createRateLimiter({
         windowMs: 60000,
         maxRequests: 2,
       });
 
       const mockReq = {
-        ip: '192.168.1.1',
+        ip: `192.168.1.${testCounter}`,
         path: '/api/test',
-        socket: { remoteAddress: '192.168.1.1' },
+        socket: { remoteAddress: `192.168.1.${testCounter}` },
       };
 
       const mockRes = {
@@ -337,15 +339,20 @@ describe('Rate Limit Middleware', () => {
 
   describe('Rate limit window expiration', () => {
     it('should reset count after window expires', async () => {
+      const windowMs = 200;
+      const waitTime = windowMs + 100; // Wait for window + buffer
+      
+      // Use unique IP to avoid interference
+      testCounter++;
       const middleware = rateLimitMiddleware({
-        windowMs: 100, // 100ms window for testing
+        windowMs,
         maxRequests: 2,
       });
 
       const mockReq = {
-        ip: '10.0.0.1',
+        ip: `10.0.0.${testCounter}`,
         path: '/api/test',
-        socket: { remoteAddress: '10.0.0.1' },
+        socket: { remoteAddress: `10.0.0.${testCounter}` },
       };
 
       const mockRes = {
@@ -366,7 +373,7 @@ describe('Rate Limit Middleware', () => {
       assert.strictEqual(mockRes.status.mock.calls.length, 1);
 
       // Wait for window to expire
-      await new Promise(resolve => setTimeout(resolve, 150));
+      await new Promise(resolve => setTimeout(resolve, waitTime));
 
       // Reset mocks
       mockNext = mock.fn();
