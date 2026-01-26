@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "lib": ["ES2022"],
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": false,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "allowJs": true,
+    "isolatedModules": true,
+    "outDir": "./dist",
+    "rootDir": "./",
+    "types": ["node", "jest"],
+    "noImplicitAny": false,
+    "strictNullChecks": false
+  },
+  "include": ["src/**/*", "server.js", "jest.config.js"],
+  "exclude": ["node_modules", "dist", "coverage"]
+}
