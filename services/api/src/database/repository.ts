@@ -113,7 +113,7 @@ class Repository {
          draft_round = EXCLUDED.draft_round,
          draft_number = EXCLUDED.draft_number,
          team_id = EXCLUDED.team_id,
-         photo_url = EXCLUDED.photo_url,
+         photo_url = COALESCE(players.photo_url, EXCLUDED.photo_url),
          updated_at = CURRENT_TIMESTAMP
        RETURNING *`,
       [
