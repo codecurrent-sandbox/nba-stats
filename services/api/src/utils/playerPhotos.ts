@@ -3,7 +3,7 @@
  * NBA.com uses player IDs to reference headshot photos
  */
 export function getPlayerPhotoUrl(playerId: number): string {
-  if (playerId === null || playerId === undefined || playerId < 0) {
+  if (playerId === null || playerId === undefined || playerId <= 0) {
     console.warn('Invalid player ID provided for photo URL');
     return '';
   }
