@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node --import tsx server.js",
     "dev": "node --import tsx --watch server.js",
-    "test": "node --test",
+    "test": "node --import tsx --test src/middleware/__tests__/*.test.ts",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix"
   },
