@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS teams (
   city VARCHAR(100) NOT NULL,
   conference VARCHAR(50),
   division VARCHAR(50),
+  logo_url TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -28,6 +29,7 @@ CREATE TABLE IF NOT EXISTS players (
   draft_round INTEGER,
   draft_number INTEGER,
   team_id INTEGER REFERENCES teams(id),
+  photo_url TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

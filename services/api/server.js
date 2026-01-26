@@ -6,6 +6,7 @@ import { InMemoryCache } from './src/cache/InMemoryCache.js';
 import { initializeDatabase } from './src/database/init.js';
 import { repository } from './src/database/repository.js';
 import { getTeamLogoUrl } from './src/utils/teamLogos.js';
+import { getPlayerPhotoUrl } from './src/utils/playerPhotos.js';
 
 dotenv.config();
 
@@ -61,7 +62,8 @@ app.get('/api/v1/players', async (req, res, next) => {
           draftYear: p.draft_year,
           draftRound: p.draft_round,
           draftNumber: p.draft_number,
-          teamId: p.team_id ? p.team_id.toString() : null
+          teamId: p.team_id ? p.team_id.toString() : null,
+          photoUrl: p.photo_url || getPlayerPhotoUrl(p.id)
         }));
         
         cachedData = {
@@ -96,14 +98,18 @@ app.get('/api/v1/players', async (req, res, next) => {
       draft_year: p.draftYear,
       draft_round: p.draftRound,
       draft_number: p.draftNumber,
-      team_id: p.teamId ? parseInt(p.teamId) : null
+      team_id: p.teamId ? parseInt(p.teamId) : null,
+      photo_url: getPlayerPhotoUrl(parseInt(p.id))
     }));
     
     await repository.upsertPlayers(playersToStore);
     console.log(`✓ Stored ${playersToStore.length} players in database`);
 
     const response = {
-      data: result.data,
+      data: result.data.map(p => ({
+        ...p,
+        photoUrl: getPlayerPhotoUrl(parseInt(p.id))
+      })),
       meta: {
         next_cursor: result.meta.next_cursor,
         per_page: result.meta.per_page
@@ -137,7 +143,8 @@ app.get('/api/v1/players/:id', async (req, res, next) => {
         draftYear: dbPlayer.draft_year,
         draftRound: dbPlayer.draft_round,
         draftNumber: dbPlayer.draft_number,
-        teamId: dbPlayer.team_id ? dbPlayer.team_id.toString() : null
+        teamId: dbPlayer.team_id ? dbPlayer.team_id.toString() : null,
+        photoUrl: dbPlayer.photo_url || getPlayerPhotoUrl(dbPlayer.id)
       };
       return res.json({ data: player });
     }
@@ -160,10 +167,16 @@ app.get('/api/v1/players/:id', async (req, res, next) => {
       draft_year: player.draftYear,
       draft_round: player.draftRound,
       draft_number: player.draftNumber,
-      team_id: player.teamId ? parseInt(player.teamId) : null
+      team_id: player.teamId ? parseInt(player.teamId) : null,
+      photo_url: getPlayerPhotoUrl(parseInt(player.id))
     });
 
-    res.json({ data: player });
+    res.json({ 
+      data: {
+        ...player,
+        photoUrl: getPlayerPhotoUrl(parseInt(player.id))
+      }
+    });
   } catch (error) {
     next(error);
   }
