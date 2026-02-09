@@ -1,0 +1,294 @@
+# NBA Stats CI Pipeline
+# Runs validation checks on every pull request across all project areas
+# Validates API, Frontend, and Infrastructure changes in parallel
+
+name: 'CI-$(Date:yyyyMMdd)-$(Rev:r)'
+
+trigger: none
+
+pr:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - services/api/**
+      - frontend/**
+      - infra/**
+
+variables:
+  - name: nodeVersion
+    value: '20.x'
+  - name: vmImage
+    value: 'ubuntu-latest'
+
+stages:
+  # ==============================================================================
+  # STAGE 1: Detect Changes
+  # ==============================================================================
+  - stage: Detect
+    displayName: 'Detect Changes'
+    jobs:
+      - job: DetectChanges
+        displayName: 'Determine affected areas'
+        pool:
+          vmImage: $(vmImage)
+        steps:
+          - checkout: self
+            fetchDepth: 0
+
+          - task: Bash@3
+            name: changes
+            displayName: 'Detect changed paths'
+            inputs:
+              targetType: 'inline'
+              script: |
+                MERGE_BASE=$(git merge-base HEAD origin/main)
+
+                API_CHANGED="false"
+                FRONTEND_CHANGED="false"
+                INFRA_CHANGED="false"
+
+                if git diff --name-only "$MERGE_BASE" HEAD | grep -q '^services/api/'; then
+                  API_CHANGED="true"
+                fi
+                if git diff --name-only "$MERGE_BASE" HEAD | grep -q '^frontend/'; then
+                  FRONTEND_CHANGED="true"
+                fi
+                if git diff --name-only "$MERGE_BASE" HEAD | grep -q '^infra/'; then
+                  INFRA_CHANGED="true"
+                fi
+
+                echo "API changed: $API_CHANGED"
+                echo "Frontend changed: $FRONTEND_CHANGED"
+                echo "Infra changed: $INFRA_CHANGED"
+
+                echo "##vso[task.setvariable variable=apiChanged;isOutput=true]$API_CHANGED"
+                echo "##vso[task.setvariable variable=frontendChanged;isOutput=true]$FRONTEND_CHANGED"
+                echo "##vso[task.setvariable variable=infraChanged;isOutput=true]$INFRA_CHANGED"
+
+  # ==============================================================================
+  # STAGE 2: API Validation
+  # ==============================================================================
+  - stage: API
+    displayName: 'API Validation'
+    dependsOn: Detect
+    condition: eq(dependencies.Detect.outputs['DetectChanges.changes.apiChanged'], 'true')
+    jobs:
+      - job: Lint
+        displayName: 'API - ESLint'
+        pool:
+          vmImage: $(vmImage)
+        steps:
+          - checkout: self
+
+          - task: NodeTool@0
+            displayName: 'Setup Node.js $(nodeVersion)'
+            inputs:
+              versionSpec: $(nodeVersion)
+
+          - task: Cache@2
+            displayName: 'Restore npm cache'
+            inputs:
+              key: 'npm | "$(Agent.OS)" | $(Build.SourcesDirectory)/services/api/package-lock.json'
+              path: $(Pipeline.Workspace)/.npm
+              restoreKeys: |
+                npm | "$(Agent.OS)"
+
+          - task: Bash@3
+            displayName: 'Install dependencies'
+            inputs:
+              targetType: 'inline'
+              workingDirectory: '$(Build.SourcesDirectory)/services/api'
+              script: |
+                npm ci --cache $(Pipeline.Workspace)/.npm --prefer-offline
+
+          - task: Bash@3
+            displayName: 'Run ESLint'
+            inputs:
+              targetType: 'inline'
+              workingDirectory: '$(Build.SourcesDirectory)/services/api'
+              script: |
+                echo "Running ESLint validation..."
+                npm run lint
+                echo "ESLint validation completed successfully"
+
+      - job: DockerBuild
+        displayName: 'API - Docker Build'
+        pool:
+          vmImage: $(vmImage)
+        steps:
+          - checkout: self
+
+          - task: Docker@2
+            displayName: 'Validate Docker build'
+            inputs:
+              command: 'build'
+              Dockerfile: 'services/api/Dockerfile'
+              buildContext: 'services/api'
+              tags: 'ci-$(Build.BuildId)'
+              arguments: '--build-arg NODE_VERSION=$(nodeVersion)'
+
+  # ==============================================================================
+  # STAGE 3: Frontend Validation
+  # ==============================================================================
+  - stage: Frontend
+    displayName: 'Frontend Validation'
+    dependsOn: Detect
+    condition: eq(dependencies.Detect.outputs['DetectChanges.changes.frontendChanged'], 'true')
+    jobs:
+      - job: TypeCheck
+        displayName: 'Frontend - TypeScript'
+        pool:
+          vmImage: $(vmImage)
+        steps:
+          - checkout: self
+
+          - task: NodeTool@0
+            displayName: 'Setup Node.js $(nodeVersion)'
+            inputs:
+              versionSpec: $(nodeVersion)
+
+          - task: Cache@2
+            displayName: 'Restore npm cache'
+            inputs:
+              key: 'npm | "$(Agent.OS)" | $(Build.SourcesDirectory)/frontend/package-lock.json'
+              path: $(Pipeline.Workspace)/.npm
+              restoreKeys: |
+                npm | "$(Agent.OS)"
+
+          - task: Bash@3
+            displayName: 'Install dependencies'
+            inputs:
+              targetType: 'inline'
+              workingDirectory: '$(Build.SourcesDirectory)/frontend'
+              script: |
+                npm ci --cache $(Pipeline.Workspace)/.npm --prefer-offline
+
+          - task: Bash@3
+            displayName: 'Run TypeScript type check'
+            inputs:
+              targetType: 'inline'
+              workingDirectory: '$(Build.SourcesDirectory)/frontend'
+              script: |
+                echo "Running TypeScript type checking..."
+                npx tsc --noEmit
+                echo "Type checking completed successfully"
+
+      - job: Lint
+        displayName: 'Frontend - ESLint'
+        pool:
+          vmImage: $(vmImage)
+        steps:
+          - checkout: self
+
+          - task: NodeTool@0
+            displayName: 'Setup Node.js $(nodeVersion)'
+            inputs:
+              versionSpec: $(nodeVersion)
+
+          - task: Cache@2
+            displayName: 'Restore npm cache'
+            inputs:
+              key: 'npm | "$(Agent.OS)" | $(Build.SourcesDirectory)/frontend/package-lock.json'
+              path: $(Pipeline.Workspace)/.npm
+              restoreKeys: |
+                npm | "$(Agent.OS)"
+
+          - task: Bash@3
+            displayName: 'Install dependencies'
+            inputs:
+              targetType: 'inline'
+              workingDirectory: '$(Build.SourcesDirectory)/frontend'
+              script: |
+                npm ci --cache $(Pipeline.Workspace)/.npm --prefer-offline
+
+          - task: Bash@3
+            displayName: 'Run ESLint'
+            inputs:
+              targetType: 'inline'
+              workingDirectory: '$(Build.SourcesDirectory)/frontend'
+              script: |
+                echo "Running ESLint validation..."
+                npm run lint
+                echo "ESLint validation completed successfully"
+
+      - job: Build
+        displayName: 'Frontend - Vite Build'
+        dependsOn:
+          - TypeCheck
+          - Lint
+        pool:
+          vmImage: $(vmImage)
+        steps:
+          - checkout: self
+
+          - task: NodeTool@0
+            displayName: 'Setup Node.js $(nodeVersion)'
+            inputs:
+              versionSpec: $(nodeVersion)
+
+          - task: Cache@2
+            displayName: 'Restore npm cache'
+            inputs:
+              key: 'npm | "$(Agent.OS)" | $(Build.SourcesDirectory)/frontend/package-lock.json'
+              path: $(Pipeline.Workspace)/.npm
+              restoreKeys: |
+                npm | "$(Agent.OS)"
+
+          - task: Bash@3
+            displayName: 'Install dependencies'
+            inputs:
+              targetType: 'inline'
+              workingDirectory: '$(Build.SourcesDirectory)/frontend'
+              script: |
+                npm ci --cache $(Pipeline.Workspace)/.npm --prefer-offline
+
+          - task: Bash@3
+            displayName: 'Build frontend'
+            inputs:
+              targetType: 'inline'
+              workingDirectory: '$(Build.SourcesDirectory)/frontend'
+              script: |
+                echo "Running Vite production build..."
+                npm run build
+                echo "Build completed successfully"
+
+  # ==============================================================================
+  # STAGE 4: Infrastructure Validation
+  # ==============================================================================
+  - stage: Infra
+    displayName: 'Infrastructure Validation'
+    dependsOn: Detect
+    condition: eq(dependencies.Detect.outputs['DetectChanges.changes.infraChanged'], 'true')
+    jobs:
+      - job: BicepValidate
+        displayName: 'Infra - Bicep Validation'
+        pool:
+          vmImage: $(vmImage)
+        steps:
+          - checkout: self
+
+          - task: AzureCLI@2
+            displayName: 'Validate Bicep templates'
+            inputs:
+              azureSubscription: 'azure-nba-stats-connection'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                set -e
+
+                echo "Building Bicep templates..."
+                az bicep build --file $(Build.SourcesDirectory)/infra/main.bicep
+                echo "Bicep build succeeded"
+
+                echo "Running what-if analysis (Dev)..."
+                az deployment sub what-if \
+                  --location swedencentral \
+                  --template-file $(Build.SourcesDirectory)/infra/main.bicep \
+                  --parameters $(Build.SourcesDirectory)/infra/parameters/dev.bicepparam \
+                  --parameters location='swedencentral' \
+                  --parameters postgresAdminPassword='placeholder' \
+                  --parameters nbaApiKey='placeholder'
+
+                echo "Infrastructure validation completed successfully"
