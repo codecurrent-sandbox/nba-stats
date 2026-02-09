@@ -5,7 +5,16 @@
 
 name: 'CI-$(Date:yyyyMMdd)-$(Rev:r)'
 
-trigger: none
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - services/api/**
+      - frontend/**
+      - infra/**
+      - pipelines/**
 
 pr:
   branches:
@@ -29,8 +38,6 @@ variables:
     value: 'false'
   - name: skipComponentGovernanceDetection
     value: 'true'
-  - name: ContainerSecurityAnalysis.Enabled
-    value: 'false'
 
 stages:
   # ==============================================================================
