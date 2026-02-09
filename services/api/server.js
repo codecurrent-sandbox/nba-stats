@@ -7,6 +7,7 @@ import { initializeDatabase } from './src/database/init.js';
 import { repository } from './src/database/repository.js';
 import { getTeamLogoUrl } from './src/utils/teamLogos.js';
 
+// Load environment variables
 dotenv.config();
 
 const app = express();

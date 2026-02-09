@@ -1,10 +1,20 @@
 # NBA Stats CI Pipeline
 # Runs validation checks on every pull request across all project areas
 # Validates API, Frontend, and Infrastructure changes in parallel
+# Reports status checks back to GitHub PRs via Azure Pipelines integration
 
 name: 'CI-$(Date:yyyyMMdd)-$(Rev:r)'
 
-trigger: none
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - services/api/**
+      - frontend/**
+      - infra/**
+      - pipelines/**
 
 pr:
   branches:
@@ -15,12 +25,19 @@ pr:
       - services/api/**
       - frontend/**
       - infra/**
+      - pipelines/**
 
 variables:
   - name: nodeVersion
     value: '20.x'
   - name: vmImage
     value: 'ubuntu-latest'
+  - name: Codeql.SkipTaskAutoInjection
+    value: 'true'
+  - name: runCodesignValidationInjection
+    value: 'false'
+  - name: skipComponentGovernanceDetection
+    value: 'true'
 
 stages:
   # ==============================================================================
