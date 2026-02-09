@@ -25,6 +25,7 @@ export interface Player {
   draft_round?: number;
   draft_number?: number;
   team_id?: number;
+  photo_url?: string;
 }
 
 export interface Game {
@@ -97,8 +98,8 @@ class Repository {
   async upsertPlayer(player: Player): Promise<Player> {
     const result = await query(
       `INSERT INTO players (id, first_name, last_name, position, height, weight, jersey_number, 
-         college, country, draft_year, draft_round, draft_number, team_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+         college, country, draft_year, draft_round, draft_number, team_id, photo_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        ON CONFLICT (id) DO UPDATE SET
          first_name = EXCLUDED.first_name,
          last_name = EXCLUDED.last_name,
@@ -112,13 +113,14 @@ class Repository {
          draft_round = EXCLUDED.draft_round,
          draft_number = EXCLUDED.draft_number,
          team_id = EXCLUDED.team_id,
+         photo_url = COALESCE(players.photo_url, EXCLUDED.photo_url),
          updated_at = CURRENT_TIMESTAMP
        RETURNING *`,
       [
         player.id, player.first_name, player.last_name, player.position,
         player.height, player.weight, player.jersey_number, player.college,
         player.country, player.draft_year, player.draft_round, player.draft_number,
-        player.team_id
+        player.team_id, player.photo_url
       ]
     );
     return result.rows[0];
