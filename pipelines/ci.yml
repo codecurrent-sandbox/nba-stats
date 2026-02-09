@@ -16,6 +16,7 @@ pr:
       - services/api/**
       - frontend/**
       - infra/**
+      - pipelines/**
 
 variables:
   - name: nodeVersion
