@@ -1,0 +1,25 @@
+trigger: none
+pr: none
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+  - task: AzureCLI@2
+    displayName: Start dev PostgreSQL server
+    inputs:
+      azureSubscription: 'azure-nba-stats-connection'
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -e
+        az postgres flexible-server start \
+          --subscription eb646303-bcf1-4835-a142-4cd3f4aefcf3 \
+          --resource-group rg-nba-stats-dev \
+          --name nba-stats-dev-pg-gotxx7fxqtcmm
+
+        az postgres flexible-server show \
+          --subscription eb646303-bcf1-4835-a142-4cd3f4aefcf3 \
+          --resource-group rg-nba-stats-dev \
+          --name nba-stats-dev-pg-gotxx7fxqtcmm \
+          --query state -o tsv
