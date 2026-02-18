@@ -1,5 +1,5 @@
 # Multi-stage build for React frontend
-FROM node:20-alpine AS builder
+FROM mcr.microsoft.com/azurelinux/base/nodejs:20 AS builder
 
 # Accept build argument for API URL (optional)
 ARG VITE_API_URL
@@ -16,7 +16,7 @@ RUN if [ -n "$VITE_API_URL" ]; then echo "VITE_API_URL=$VITE_API_URL" > .env.pro
 RUN npm run build
 
 # Production stage with nginx
-FROM nginx:1.25-alpine
+FROM mcr.microsoft.com/azurelinux/base/nginx:1
 
 WORKDIR /usr/share/nginx/html
 
@@ -26,13 +26,13 @@ COPY --from=builder /build/dist .
 # Copy nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Create non-root user (nginx already runs as non-root by default in Alpine)
+# Ensure nginx can serve the built assets
 RUN chown -R nginx:nginx /usr/share/nginx/html && \
     chmod -R 755 /usr/share/nginx/html
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD wget --quiet --tries=1 --spider http://localhost/health || exit 1
+    CMD curl -sf http://localhost/health || exit 1
 
 EXPOSE 3001
 
