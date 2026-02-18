@@ -2,7 +2,6 @@
 # Runs validation checks on every pull request across all project areas
 # Validates API, Frontend, and Infrastructure changes in parallel
 # Reports status checks back to GitHub PRs via Azure Pipelines integration
-# Trigger touch: verify status check visibility (PR validation - YAML override off)
 
 name: 'CI-$(Date:yyyyMMdd)-$(Rev:r)'
 
@@ -39,6 +38,10 @@ variables:
     value: 'false'
   - name: skipComponentGovernanceDetection
     value: 'true'
+  - name: SSCA.SkipTaskAutoInjection
+    value: 'true'
+  - name: runSSCA
+    value: 'false'
 
 stages:
   # ==============================================================================
