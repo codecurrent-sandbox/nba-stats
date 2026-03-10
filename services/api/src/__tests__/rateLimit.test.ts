@@ -2,8 +2,8 @@
  * Unit tests for rateLimit middleware
  *
  * Covers:
- * - Token bucket algorithm: allows up to maxRequests, blocks when exceeded, resets after window
- * - Per-IP tracking: separate buckets per key
+ * - Fixed-window counter algorithm: allows up to maxRequests per window, blocks when exceeded, resets after window
+ * - Per-IP tracking: separate counters per key
  * - Rate limit exceeded: 429 status + Retry-After header
  * - Rate limit headers: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset
  * - skip option
@@ -43,11 +43,11 @@ function makeMockRes() {
 }
 
 // ---------------------------------------------------------------------------
-// rateLimitMiddleware – token bucket algorithm
+// rateLimitMiddleware – fixed-window counter algorithm
 // ---------------------------------------------------------------------------
 
 describe('rateLimitMiddleware', () => {
-  describe('token bucket algorithm', () => {
+  describe('fixed-window counter algorithm', () => {
     it('should allow requests up to maxRequests', () => {
       const ip = nextIp();
       const middleware = rateLimitMiddleware({ windowMs: 60000, maxRequests: 3 });
@@ -82,7 +82,7 @@ describe('rateLimitMiddleware', () => {
       const middleware = rateLimitMiddleware({ windowMs: 100, maxRequests: 2 });
       const next = jest.fn();
 
-      // Fill the bucket
+      // Fill the window's allowance
       middleware(makeMockReq(ip), makeMockRes(), next);
       middleware(makeMockReq(ip), makeMockRes(), next);
 
@@ -94,7 +94,7 @@ describe('rateLimitMiddleware', () => {
       // Wait for the window to expire
       await new Promise(resolve => setTimeout(resolve, 150));
 
-      // The bucket should be fresh again
+      // The counter should be reset — new window starts fresh
       const nextAfterReset = jest.fn();
       middleware(makeMockReq(ip), makeMockRes(), nextAfterReset);
       expect(nextAfterReset).toHaveBeenCalledTimes(1);
@@ -106,7 +106,7 @@ describe('rateLimitMiddleware', () => {
   // ---------------------------------------------------------------------------
 
   describe('per-IP tracking', () => {
-    it('should give each IP its own independent bucket', () => {
+    it('should give each IP its own independent counter', () => {
       const ip1 = nextIp();
       const ip2 = nextIp();
       const middleware = rateLimitMiddleware({ windowMs: 60000, maxRequests: 2 });
