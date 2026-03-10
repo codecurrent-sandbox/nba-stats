@@ -32,7 +32,7 @@ RUN chown -R nginx:nginx /usr/share/nginx/html && \
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -sf http://localhost/health || exit 1
+    CMD curl -sf http://localhost:3001/health || exit 1
 
 EXPOSE 3001
 
